@@ -8,17 +8,16 @@ pub mod examples;
 
 use std::{fmt, error, result, rc::Rc};
 use std::str::FromStr;
-use colored::Colorize;
 use chrono::{self, NaiveDate, NaiveTime, NaiveDateTime, Duration};
-use itertools::Itertools;
-
-use crate::{
-    protobuf::{dataset, schema, size, type_, statistics, print_to_string, parse_from_str, ParseError},
+use qrlew::{
     data_type::{self, DataType},
     expr::identifier::Identifier,
     relation::{Relation, Variant as _, schema::Schema},
     builder::{With, Ready},
     hierarchy::{Hierarchy, Path},
+};
+use crate::{
+    protobuf::{dataset, schema, size, type_, statistics, print_to_string, parse_from_str, ParseError},
 };
 
 // Error management
@@ -322,19 +321,17 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
     }
 }
 
-impl<'a> From<(Identifier, &'a type_::type_::Struct, Option<&'a statistics::statistics::Struct>)> for Relation {
-    fn from((i, t, s): (Identifier, &'a type_::type_::Struct, Option<&'a statistics::statistics::Struct>)) -> Self {
-        let schema: Schema = t.try_into().unwrap();
-        let mut builder = Relation::table().schema(schema);
-        // Create a table builder with a name
-        if let Some(name) = i.last() {
-            builder = builder.name(name)
-        }
-        if let Some(s) = s {
-            builder = builder.size(s.size())
-        }
-        builder.build()
+fn relation<'a>(i: Identifier, t: &'a type_::type_::Struct, s: Option<&'a statistics::statistics::Struct>) -> Relation {
+    let schema: Schema = t.try_into().unwrap();
+    let mut builder = Relation::table().schema(schema);
+    // Create a table builder with a name
+    if let Some(name) = i.last() {
+        builder = builder.name(name)
     }
+    if let Some(s) = s {
+        builder = builder.size(s.size())
+    }
+    builder.build()
 }
 
 #[cfg(test)]

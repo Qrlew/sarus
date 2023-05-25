@@ -1,13 +1,14 @@
+use anyhow::Result;
 use glob::glob;
 use protobuf_codegen::{Codegen, Customize};
-use std::{result::Result, path::PathBuf};
+use std::path::PathBuf;
 
-fn main() -> Result<(), String> {
+fn main() -> Result<()> {
     protobuf_codegen()?;
     Ok(())
 }
 
-fn protobuf_codegen() -> Result<(), String> {
+fn protobuf_codegen() -> Result<()> {
     let inputs: Vec<PathBuf> = glob("sarus_data_spec/protobuf/*.proto")?
         .filter_map(|pathbuf| pathbuf.ok())
         .collect();
@@ -20,6 +21,6 @@ fn protobuf_codegen() -> Result<(), String> {
             .generate_accessors(true)
             .gen_mod_rs(false)
         )
-        .run().expect("Generated proto");
+        .run()?;
     Ok(())
 }

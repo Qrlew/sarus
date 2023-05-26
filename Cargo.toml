@@ -3,7 +3,13 @@ authors = ["Nicolas Grislain <ng@sarus.tech>"]
 name = "qrlew-sarus"
 version = "1.0.0"
 edition = "2021"
-description = "Sarus interfeces"
+description = "Qrlew - Sarus interfaces"
+documentation = "https://docs.rs/qrlew-sarus"
+readme = "README.md"
+homepage = "https://sarus.tech/"
+repository = "https://github.com/Qrlew/sarus"
+license = "Apache-2.0"
+keywords = ["sql", "data"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]

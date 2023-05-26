@@ -321,7 +321,7 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
     }
 }
 
-fn relation<'a>(i: Identifier, t: &'a type_::type_::Struct, s: Option<&'a statistics::statistics::Struct>) -> Relation {
+fn relation_from_struct<'a>(i: Identifier, t: &'a type_::type_::Struct, s: Option<&'a statistics::statistics::Struct>) -> Relation {
     let schema: Schema = t.try_into().unwrap();
     let mut builder = Relation::table().schema(schema);
     // Create a table builder with a name

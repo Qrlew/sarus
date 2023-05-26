@@ -1,20 +1,20 @@
 name: Deployment
 
 on:
-  push:
-    tags:
-      - v*
+    push:
+        tags:
+            - v*
 
 env:
-  CARGO_TERM_COLOR: always
+    CARGO_TERM_COLOR: always
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
+    publish:
+        runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
-      - name: Publish
-        run: cargo publish --token ${CRATES_TOKEN}
-        env:
-          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+        steps:
+            - uses: actions/checkout@v3
+            - name: Publish
+              run: cargo publish --token ${CRATES_TOKEN}
+              env:
+                  CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}

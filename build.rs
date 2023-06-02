@@ -17,9 +17,10 @@ fn protobuf_codegen() -> Result<()> {
         .out_dir("src/protobuf")
         .inputs(inputs)
         .include("")
-        .customize(Customize::default()
-            .generate_accessors(true)
-            .gen_mod_rs(false)
+        .customize(
+            Customize::default()
+                .generate_accessors(true)
+                .gen_mod_rs(false),
         )
         .run()?;
     Ok(())

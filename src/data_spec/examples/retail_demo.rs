@@ -1,4 +1,3 @@
-
 pub const DATASET: &str = r#"
 {
     "@type": "sarus_data_spec/sarus_data_spec.Dataset",

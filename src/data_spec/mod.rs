@@ -99,7 +99,7 @@ impl Dataset {
     }
 
     /// Return the data part of the schema
-    fn schema_type_data(&self) -> &type_::Type {
+    pub fn schema_type_data(&self) -> &type_::Type {
         match self.schema.type_().type_.as_ref() {
             Some(type_::type_::Type::Struct(s)) => s
                 .fields()

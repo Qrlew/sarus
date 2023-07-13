@@ -46,6 +46,8 @@ message Transform {
       Extract extract = 28;
       RelationshipSpec relationship_spec = 29;
       DifferentiatedSample differentiated_sample = 30;
+      ValidatedUserType validated_user_type=31;
+      DPSelectSql dp_select_sql = 32;
     }
   }
 
@@ -233,31 +235,40 @@ message Transform {
       AliasedQueries aliased_queries = 2;
     }
     SQLDialect sql_dialect = 3;
+  }
 
-    enum SQLDialect {
-      NONE = 0;
-      POSTGRES = 1;
-      SQL_SERVER = 2;
-      MY_SQL = 3;
-      SQLLITE = 4;
-      ORACLE = 5;
-      BIG_QUERY = 6;
-      REDSHIFT = 7;
-      HIVE = 8;
+  message DPSelectSql {
+    oneof select {
+      string query = 1;
+      AliasedQueries aliased_queries = 2;
     }
+    SQLDialect sql_dialect = 3;
+  }
+  enum SQLDialect {
+    NONE = 0;
+    POSTGRES = 1;
+    SQL_SERVER = 2;
+    MY_SQL = 3;
+    SQLLITE = 4;
+    ORACLE = 5;
+    BIG_QUERY = 6;
+    REDSHIFT = 7;
+    HIVE = 8;
+  }
 
 
-    message AliasedQueries {
-      repeated AliasedQuery aliased_query = 1;
-    }
+  message AliasedQueries {
+    repeated AliasedQuery aliased_query = 1;
+  }
 
-    message AliasedQuery {
-      sarus_data_spec.Path path = 1;
-      string query = 2;
-    }
+  message AliasedQuery {
+    sarus_data_spec.Path path = 1;
+    string query = 2;
   }
 
   message Extract {
     int32 size = 1;
+  }
+   message ValidatedUserType {
   }
 }

@@ -58,6 +58,10 @@ message Type {
       INT32 = 1;
       INT16 = 2;
       INT8 = 3;
+      UINT64 = 4;
+      UINT32 = 5;
+      UINT16 = 6;
+      UINT8 = 7;
     }
   }
 

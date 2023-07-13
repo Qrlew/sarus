@@ -1924,8 +1924,106 @@ pub mod transform {
             }
         }
 
+        // .Transform.ValidatedUserType validated_user_type = 31;
+
+        pub fn validated_user_type(&self) -> &ValidatedUserType {
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::ValidatedUserType(ref v)) => v,
+                _ => <ValidatedUserType as ::protobuf::Message>::default_instance(),
+            }
+        }
+
+        pub fn clear_validated_user_type(&mut self) {
+            self.spec = ::std::option::Option::None;
+        }
+
+        pub fn has_validated_user_type(&self) -> bool {
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::ValidatedUserType(..)) => true,
+                _ => false,
+            }
+        }
+
+        // Param is passed by value, moved
+        pub fn set_validated_user_type(&mut self, v: ValidatedUserType) {
+            self.spec = ::std::option::Option::Some(spec::Spec::ValidatedUserType(v))
+        }
+
+        // Mutable pointer to the field.
+        pub fn mut_validated_user_type(&mut self) -> &mut ValidatedUserType {
+            if let ::std::option::Option::Some(spec::Spec::ValidatedUserType(_)) = self.spec {
+            } else {
+                self.spec = ::std::option::Option::Some(spec::Spec::ValidatedUserType(ValidatedUserType::new()));
+            }
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::ValidatedUserType(ref mut v)) => v,
+                _ => panic!(),
+            }
+        }
+
+        // Take field
+        pub fn take_validated_user_type(&mut self) -> ValidatedUserType {
+            if self.has_validated_user_type() {
+                match self.spec.take() {
+                    ::std::option::Option::Some(spec::Spec::ValidatedUserType(v)) => v,
+                    _ => panic!(),
+                }
+            } else {
+                ValidatedUserType::new()
+            }
+        }
+
+        // .Transform.DPSelectSql dp_select_sql = 32;
+
+        pub fn dp_select_sql(&self) -> &DPSelectSql {
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::DpSelectSql(ref v)) => v,
+                _ => <DPSelectSql as ::protobuf::Message>::default_instance(),
+            }
+        }
+
+        pub fn clear_dp_select_sql(&mut self) {
+            self.spec = ::std::option::Option::None;
+        }
+
+        pub fn has_dp_select_sql(&self) -> bool {
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::DpSelectSql(..)) => true,
+                _ => false,
+            }
+        }
+
+        // Param is passed by value, moved
+        pub fn set_dp_select_sql(&mut self, v: DPSelectSql) {
+            self.spec = ::std::option::Option::Some(spec::Spec::DpSelectSql(v))
+        }
+
+        // Mutable pointer to the field.
+        pub fn mut_dp_select_sql(&mut self) -> &mut DPSelectSql {
+            if let ::std::option::Option::Some(spec::Spec::DpSelectSql(_)) = self.spec {
+            } else {
+                self.spec = ::std::option::Option::Some(spec::Spec::DpSelectSql(DPSelectSql::new()));
+            }
+            match self.spec {
+                ::std::option::Option::Some(spec::Spec::DpSelectSql(ref mut v)) => v,
+                _ => panic!(),
+            }
+        }
+
+        // Take field
+        pub fn take_dp_select_sql(&mut self) -> DPSelectSql {
+            if self.has_dp_select_sql() {
+                match self.spec.take() {
+                    ::std::option::Option::Some(spec::Spec::DpSelectSql(v)) => v,
+                    _ => panic!(),
+                }
+            } else {
+                DPSelectSql::new()
+            }
+        }
+
         pub(in super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
-            let mut fields = ::std::vec::Vec::with_capacity(30);
+            let mut fields = ::std::vec::Vec::with_capacity(32);
             let mut oneofs = ::std::vec::Vec::with_capacity(1);
             fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, Identity>(
                 "identity",
@@ -2137,6 +2235,20 @@ pub mod transform {
                 Spec::mut_differentiated_sample,
                 Spec::set_differentiated_sample,
             ));
+            fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, ValidatedUserType>(
+                "validated_user_type",
+                Spec::has_validated_user_type,
+                Spec::validated_user_type,
+                Spec::mut_validated_user_type,
+                Spec::set_validated_user_type,
+            ));
+            fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, DPSelectSql>(
+                "dp_select_sql",
+                Spec::has_dp_select_sql,
+                Spec::dp_select_sql,
+                Spec::mut_dp_select_sql,
+                Spec::set_dp_select_sql,
+            ));
             oneofs.push(spec::Spec::generated_oneof_descriptor_data());
             ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<Spec>(
                 "Transform.Spec",
@@ -2245,6 +2357,12 @@ pub mod transform {
                     },
                     242 => {
                         self.spec = ::std::option::Option::Some(spec::Spec::DifferentiatedSample(is.read_message()?));
+                    },
+                    250 => {
+                        self.spec = ::std::option::Option::Some(spec::Spec::ValidatedUserType(is.read_message()?));
+                    },
+                    258 => {
+                        self.spec = ::std::option::Option::Some(spec::Spec::DpSelectSql(is.read_message()?));
                     },
                     tag => {
                         ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
@@ -2380,6 +2498,14 @@ pub mod transform {
                         let len = v.compute_size();
                         my_size += 2 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
                     },
+                    &spec::Spec::ValidatedUserType(ref v) => {
+                        let len = v.compute_size();
+                        my_size += 2 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+                    },
+                    &spec::Spec::DpSelectSql(ref v) => {
+                        let len = v.compute_size();
+                        my_size += 2 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+                    },
                 };
             }
             my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
@@ -2480,6 +2606,12 @@ pub mod transform {
                     &spec::Spec::DifferentiatedSample(ref v) => {
                         ::protobuf::rt::write_message_field_with_cached_size(30, v, os)?;
                     },
+                    &spec::Spec::ValidatedUserType(ref v) => {
+                        ::protobuf::rt::write_message_field_with_cached_size(31, v, os)?;
+                    },
+                    &spec::Spec::DpSelectSql(ref v) => {
+                        ::protobuf::rt::write_message_field_with_cached_size(32, v, os)?;
+                    },
                 };
             }
             os.write_unknown_fields(self.special_fields.unknown_fields())?;
@@ -2499,6 +2631,8 @@ pub mod transform {
         }
 
         fn clear(&mut self) {
+            self.spec = ::std::option::Option::None;
+            self.spec = ::std::option::Option::None;
             self.spec = ::std::option::Option::None;
             self.spec = ::std::option::Option::None;
             self.spec = ::std::option::Option::None;
@@ -2625,6 +2759,10 @@ pub mod transform {
             RelationshipSpec(super::RelationshipSpec),
             // @@protoc_insertion_point(oneof_field:Transform.Spec.differentiated_sample)
             DifferentiatedSample(super::DifferentiatedSample),
+            // @@protoc_insertion_point(oneof_field:Transform.Spec.validated_user_type)
+            ValidatedUserType(super::ValidatedUserType),
+            // @@protoc_insertion_point(oneof_field:Transform.Spec.dp_select_sql)
+            DpSelectSql(super::DPSelectSql),
         }
 
         impl ::protobuf::Oneof for Spec {
@@ -9001,7 +9139,7 @@ pub mod transform {
     pub struct SelectSql {
         // message fields
         // @@protoc_insertion_point(field:Transform.SelectSql.sql_dialect)
-        pub sql_dialect: ::protobuf::EnumOrUnknown<select_sql::SQLDialect>,
+        pub sql_dialect: ::protobuf::EnumOrUnknown<SQLDialect>,
         // message oneof groups
         pub select: ::std::option::Option<select_sql::Select>,
         // special fields
@@ -9069,12 +9207,12 @@ pub mod transform {
             }
         }
 
-        // .Transform.SelectSql.AliasedQueries aliased_queries = 2;
+        // .Transform.AliasedQueries aliased_queries = 2;
 
-        pub fn aliased_queries(&self) -> &select_sql::AliasedQueries {
+        pub fn aliased_queries(&self) -> &AliasedQueries {
             match self.select {
                 ::std::option::Option::Some(select_sql::Select::AliasedQueries(ref v)) => v,
-                _ => <select_sql::AliasedQueries as ::protobuf::Message>::default_instance(),
+                _ => <AliasedQueries as ::protobuf::Message>::default_instance(),
             }
         }
 
@@ -9090,15 +9228,15 @@ pub mod transform {
         }
 
         // Param is passed by value, moved
-        pub fn set_aliased_queries(&mut self, v: select_sql::AliasedQueries) {
+        pub fn set_aliased_queries(&mut self, v: AliasedQueries) {
             self.select = ::std::option::Option::Some(select_sql::Select::AliasedQueries(v))
         }
 
         // Mutable pointer to the field.
-        pub fn mut_aliased_queries(&mut self) -> &mut select_sql::AliasedQueries {
+        pub fn mut_aliased_queries(&mut self) -> &mut AliasedQueries {
             if let ::std::option::Option::Some(select_sql::Select::AliasedQueries(_)) = self.select {
             } else {
-                self.select = ::std::option::Option::Some(select_sql::Select::AliasedQueries(select_sql::AliasedQueries::new()));
+                self.select = ::std::option::Option::Some(select_sql::Select::AliasedQueries(AliasedQueries::new()));
             }
             match self.select {
                 ::std::option::Option::Some(select_sql::Select::AliasedQueries(ref mut v)) => v,
@@ -9107,29 +9245,29 @@ pub mod transform {
         }
 
         // Take field
-        pub fn take_aliased_queries(&mut self) -> select_sql::AliasedQueries {
+        pub fn take_aliased_queries(&mut self) -> AliasedQueries {
             if self.has_aliased_queries() {
                 match self.select.take() {
                     ::std::option::Option::Some(select_sql::Select::AliasedQueries(v)) => v,
                     _ => panic!(),
                 }
             } else {
-                select_sql::AliasedQueries::new()
+                AliasedQueries::new()
             }
         }
 
-        // .Transform.SelectSql.SQLDialect sql_dialect = 3;
+        // .Transform.SQLDialect sql_dialect = 3;
 
-        pub fn sql_dialect(&self) -> select_sql::SQLDialect {
+        pub fn sql_dialect(&self) -> SQLDialect {
             self.sql_dialect.enum_value_or_default()
         }
 
         pub fn clear_sql_dialect(&mut self) {
-            self.sql_dialect = ::protobuf::EnumOrUnknown::new(select_sql::SQLDialect::NONE);
+            self.sql_dialect = ::protobuf::EnumOrUnknown::new(SQLDialect::NONE);
         }
 
         // Param is passed by value, moved
-        pub fn set_sql_dialect(&mut self, v: select_sql::SQLDialect) {
+        pub fn set_sql_dialect(&mut self, v: SQLDialect) {
             self.sql_dialect = ::protobuf::EnumOrUnknown::new(v);
         }
 
@@ -9142,7 +9280,7 @@ pub mod transform {
                 SelectSql::query,
                 SelectSql::set_query,
             ));
-            fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, select_sql::AliasedQueries>(
+            fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, AliasedQueries>(
                 "aliased_queries",
                 SelectSql::has_aliased_queries,
                 SelectSql::aliased_queries,
@@ -9194,7 +9332,7 @@ pub mod transform {
         #[allow(unused_variables)]
         fn compute_size(&self) -> u64 {
             let mut my_size = 0;
-            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(select_sql::SQLDialect::NONE) {
+            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(SQLDialect::NONE) {
                 my_size += ::protobuf::rt::int32_size(3, self.sql_dialect.value());
             }
             if let ::std::option::Option::Some(ref v) = self.select {
@@ -9214,7 +9352,7 @@ pub mod transform {
         }
 
         fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
-            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(select_sql::SQLDialect::NONE) {
+            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(SQLDialect::NONE) {
                 os.write_enum(3, ::protobuf::EnumOrUnknown::value(&self.sql_dialect))?;
             }
             if let ::std::option::Option::Some(ref v) = self.select {
@@ -9246,7 +9384,7 @@ pub mod transform {
         fn clear(&mut self) {
             self.select = ::std::option::Option::None;
             self.select = ::std::option::Option::None;
-            self.sql_dialect = ::protobuf::EnumOrUnknown::new(select_sql::SQLDialect::NONE);
+            self.sql_dialect = ::protobuf::EnumOrUnknown::new(SQLDialect::NONE);
             self.special_fields.clear();
         }
 
@@ -9287,7 +9425,7 @@ pub mod transform {
             // @@protoc_insertion_point(oneof_field:Transform.SelectSql.query)
             Query(::std::string::String),
             // @@protoc_insertion_point(oneof_field:Transform.SelectSql.aliased_queries)
-            AliasedQueries(AliasedQueries),
+            AliasedQueries(super::AliasedQueries),
         }
 
         impl ::protobuf::Oneof for Select {
@@ -9305,432 +9443,662 @@ pub mod transform {
                 ::protobuf::reflect::GeneratedOneofDescriptorData::new::<Select>("select")
             }
         }
-        #[derive(PartialEq,Clone,Default,Debug)]
-        // @@protoc_insertion_point(message:Transform.SelectSql.AliasedQueries)
-        pub struct AliasedQueries {
-            // message fields
-            // @@protoc_insertion_point(field:Transform.SelectSql.AliasedQueries.aliased_query)
-            pub aliased_query: ::std::vec::Vec<AliasedQuery>,
-            // special fields
-            // @@protoc_insertion_point(special_field:Transform.SelectSql.AliasedQueries.special_fields)
-            pub special_fields: ::protobuf::SpecialFields,
+    }
+
+    #[derive(PartialEq,Clone,Default,Debug)]
+    // @@protoc_insertion_point(message:Transform.DPSelectSql)
+    pub struct DPSelectSql {
+        // message fields
+        // @@protoc_insertion_point(field:Transform.DPSelectSql.sql_dialect)
+        pub sql_dialect: ::protobuf::EnumOrUnknown<SQLDialect>,
+        // message oneof groups
+        pub select: ::std::option::Option<dpselect_sql::Select>,
+        // special fields
+        // @@protoc_insertion_point(special_field:Transform.DPSelectSql.special_fields)
+        pub special_fields: ::protobuf::SpecialFields,
+    }
+
+    impl<'a> ::std::default::Default for &'a DPSelectSql {
+        fn default() -> &'a DPSelectSql {
+            <DPSelectSql as ::protobuf::Message>::default_instance()
+        }
+    }
+
+    impl DPSelectSql {
+        pub fn new() -> DPSelectSql {
+            ::std::default::Default::default()
         }
 
-        impl<'a> ::std::default::Default for &'a AliasedQueries {
-            fn default() -> &'a AliasedQueries {
-                <AliasedQueries as ::protobuf::Message>::default_instance()
-            }
-        }
+        // string query = 1;
 
-        impl AliasedQueries {
-            pub fn new() -> AliasedQueries {
-                ::std::default::Default::default()
-            }
-
-            // repeated .Transform.SelectSql.AliasedQuery aliased_query = 1;
-
-            pub fn aliased_query(&self) -> &[AliasedQuery] {
-                &self.aliased_query
-            }
-
-            pub fn clear_aliased_query(&mut self) {
-                self.aliased_query.clear();
-            }
-
-            // Param is passed by value, moved
-            pub fn set_aliased_query(&mut self, v: ::std::vec::Vec<AliasedQuery>) {
-                self.aliased_query = v;
-            }
-
-            // Mutable pointer to the field.
-            pub fn mut_aliased_query(&mut self) -> &mut ::std::vec::Vec<AliasedQuery> {
-                &mut self.aliased_query
-            }
-
-            // Take field
-            pub fn take_aliased_query(&mut self) -> ::std::vec::Vec<AliasedQuery> {
-                ::std::mem::replace(&mut self.aliased_query, ::std::vec::Vec::new())
-            }
-
-            pub(in super::super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
-                let mut fields = ::std::vec::Vec::with_capacity(1);
-                let mut oneofs = ::std::vec::Vec::with_capacity(0);
-                fields.push(::protobuf::reflect::rt::v2::make_vec_simpler_accessor::<_, _>(
-                    "aliased_query",
-                    |m: &AliasedQueries| { &m.aliased_query },
-                    |m: &mut AliasedQueries| { &mut m.aliased_query },
-                ));
-                ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<AliasedQueries>(
-                    "Transform.SelectSql.AliasedQueries",
-                    fields,
-                    oneofs,
-                )
+        pub fn query(&self) -> &str {
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::Query(ref v)) => v,
+                _ => "",
             }
         }
 
-        impl ::protobuf::Message for AliasedQueries {
-            const NAME: &'static str = "AliasedQueries";
+        pub fn clear_query(&mut self) {
+            self.select = ::std::option::Option::None;
+        }
 
-            fn is_initialized(&self) -> bool {
-                true
+        pub fn has_query(&self) -> bool {
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::Query(..)) => true,
+                _ => false,
             }
+        }
 
-            fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
-                while let Some(tag) = is.read_raw_tag_or_eof()? {
-                    match tag {
-                        10 => {
-                            self.aliased_query.push(is.read_message()?);
-                        },
-                        tag => {
-                            ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
-                        },
-                    };
+        // Param is passed by value, moved
+        pub fn set_query(&mut self, v: ::std::string::String) {
+            self.select = ::std::option::Option::Some(dpselect_sql::Select::Query(v))
+        }
+
+        // Mutable pointer to the field.
+        pub fn mut_query(&mut self) -> &mut ::std::string::String {
+            if let ::std::option::Option::Some(dpselect_sql::Select::Query(_)) = self.select {
+            } else {
+                self.select = ::std::option::Option::Some(dpselect_sql::Select::Query(::std::string::String::new()));
+            }
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::Query(ref mut v)) => v,
+                _ => panic!(),
+            }
+        }
+
+        // Take field
+        pub fn take_query(&mut self) -> ::std::string::String {
+            if self.has_query() {
+                match self.select.take() {
+                    ::std::option::Option::Some(dpselect_sql::Select::Query(v)) => v,
+                    _ => panic!(),
                 }
-                ::std::result::Result::Ok(())
+            } else {
+                ::std::string::String::new()
             }
+        }
 
-            // Compute sizes of nested messages
-            #[allow(unused_variables)]
-            fn compute_size(&self) -> u64 {
-                let mut my_size = 0;
-                for value in &self.aliased_query {
-                    let len = value.compute_size();
-                    my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
-                };
-                my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
-                self.special_fields.cached_size().set(my_size as u32);
-                my_size
+        // .Transform.AliasedQueries aliased_queries = 2;
+
+        pub fn aliased_queries(&self) -> &AliasedQueries {
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(ref v)) => v,
+                _ => <AliasedQueries as ::protobuf::Message>::default_instance(),
             }
+        }
 
-            fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
-                for v in &self.aliased_query {
-                    ::protobuf::rt::write_message_field_with_cached_size(1, v, os)?;
-                };
-                os.write_unknown_fields(self.special_fields.unknown_fields())?;
-                ::std::result::Result::Ok(())
+        pub fn clear_aliased_queries(&mut self) {
+            self.select = ::std::option::Option::None;
+        }
+
+        pub fn has_aliased_queries(&self) -> bool {
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(..)) => true,
+                _ => false,
             }
+        }
 
-            fn special_fields(&self) -> &::protobuf::SpecialFields {
-                &self.special_fields
+        // Param is passed by value, moved
+        pub fn set_aliased_queries(&mut self, v: AliasedQueries) {
+            self.select = ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(v))
+        }
+
+        // Mutable pointer to the field.
+        pub fn mut_aliased_queries(&mut self) -> &mut AliasedQueries {
+            if let ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(_)) = self.select {
+            } else {
+                self.select = ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(AliasedQueries::new()));
             }
-
-            fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
-                &mut self.special_fields
+            match self.select {
+                ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(ref mut v)) => v,
+                _ => panic!(),
             }
+        }
 
-            fn new() -> AliasedQueries {
+        // Take field
+        pub fn take_aliased_queries(&mut self) -> AliasedQueries {
+            if self.has_aliased_queries() {
+                match self.select.take() {
+                    ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(v)) => v,
+                    _ => panic!(),
+                }
+            } else {
                 AliasedQueries::new()
             }
+        }
 
-            fn clear(&mut self) {
-                self.aliased_query.clear();
-                self.special_fields.clear();
-            }
+        // .Transform.SQLDialect sql_dialect = 3;
 
-            fn default_instance() -> &'static AliasedQueries {
-                static instance: AliasedQueries = AliasedQueries {
-                    aliased_query: ::std::vec::Vec::new(),
-                    special_fields: ::protobuf::SpecialFields::new(),
+        pub fn sql_dialect(&self) -> SQLDialect {
+            self.sql_dialect.enum_value_or_default()
+        }
+
+        pub fn clear_sql_dialect(&mut self) {
+            self.sql_dialect = ::protobuf::EnumOrUnknown::new(SQLDialect::NONE);
+        }
+
+        // Param is passed by value, moved
+        pub fn set_sql_dialect(&mut self, v: SQLDialect) {
+            self.sql_dialect = ::protobuf::EnumOrUnknown::new(v);
+        }
+
+        pub(in super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+            let mut fields = ::std::vec::Vec::with_capacity(3);
+            let mut oneofs = ::std::vec::Vec::with_capacity(1);
+            fields.push(::protobuf::reflect::rt::v2::make_oneof_deref_has_get_set_simpler_accessor::<_, _>(
+                "query",
+                DPSelectSql::has_query,
+                DPSelectSql::query,
+                DPSelectSql::set_query,
+            ));
+            fields.push(::protobuf::reflect::rt::v2::make_oneof_message_has_get_mut_set_accessor::<_, AliasedQueries>(
+                "aliased_queries",
+                DPSelectSql::has_aliased_queries,
+                DPSelectSql::aliased_queries,
+                DPSelectSql::mut_aliased_queries,
+                DPSelectSql::set_aliased_queries,
+            ));
+            fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+                "sql_dialect",
+                |m: &DPSelectSql| { &m.sql_dialect },
+                |m: &mut DPSelectSql| { &mut m.sql_dialect },
+            ));
+            oneofs.push(dpselect_sql::Select::generated_oneof_descriptor_data());
+            ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<DPSelectSql>(
+                "Transform.DPSelectSql",
+                fields,
+                oneofs,
+            )
+        }
+    }
+
+    impl ::protobuf::Message for DPSelectSql {
+        const NAME: &'static str = "DPSelectSql";
+
+        fn is_initialized(&self) -> bool {
+            true
+        }
+
+        fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+            while let Some(tag) = is.read_raw_tag_or_eof()? {
+                match tag {
+                    10 => {
+                        self.select = ::std::option::Option::Some(dpselect_sql::Select::Query(is.read_string()?));
+                    },
+                    18 => {
+                        self.select = ::std::option::Option::Some(dpselect_sql::Select::AliasedQueries(is.read_message()?));
+                    },
+                    24 => {
+                        self.sql_dialect = is.read_enum_or_unknown()?;
+                    },
+                    tag => {
+                        ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                    },
                 };
-                &instance
             }
+            ::std::result::Result::Ok(())
         }
 
-        impl ::protobuf::MessageFull for AliasedQueries {
-            fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
-                static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
-                descriptor.get(|| super::super::file_descriptor().message_by_package_relative_name("Transform.SelectSql.AliasedQueries").unwrap()).clone()
+        // Compute sizes of nested messages
+        #[allow(unused_variables)]
+        fn compute_size(&self) -> u64 {
+            let mut my_size = 0;
+            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(SQLDialect::NONE) {
+                my_size += ::protobuf::rt::int32_size(3, self.sql_dialect.value());
             }
-        }
-
-        impl ::std::fmt::Display for AliasedQueries {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                ::protobuf::text_format::fmt(self, f)
-            }
-        }
-
-        impl ::protobuf::reflect::ProtobufValue for AliasedQueries {
-            type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
-        }
-
-        #[derive(PartialEq,Clone,Default,Debug)]
-        // @@protoc_insertion_point(message:Transform.SelectSql.AliasedQuery)
-        pub struct AliasedQuery {
-            // message fields
-            // @@protoc_insertion_point(field:Transform.SelectSql.AliasedQuery.path)
-            pub path: ::protobuf::MessageField<super::super::super::path::Path>,
-            // @@protoc_insertion_point(field:Transform.SelectSql.AliasedQuery.query)
-            pub query: ::std::string::String,
-            // special fields
-            // @@protoc_insertion_point(special_field:Transform.SelectSql.AliasedQuery.special_fields)
-            pub special_fields: ::protobuf::SpecialFields,
-        }
-
-        impl<'a> ::std::default::Default for &'a AliasedQuery {
-            fn default() -> &'a AliasedQuery {
-                <AliasedQuery as ::protobuf::Message>::default_instance()
-            }
-        }
-
-        impl AliasedQuery {
-            pub fn new() -> AliasedQuery {
-                ::std::default::Default::default()
-            }
-
-            // .sarus_data_spec.Path path = 1;
-
-            pub fn path(&self) -> &super::super::super::path::Path {
-                self.path.as_ref().unwrap_or_else(|| <super::super::super::path::Path as ::protobuf::Message>::default_instance())
-            }
-
-            pub fn clear_path(&mut self) {
-                self.path.clear();
-            }
-
-            pub fn has_path(&self) -> bool {
-                self.path.is_some()
-            }
-
-            // Param is passed by value, moved
-            pub fn set_path(&mut self, v: super::super::super::path::Path) {
-                self.path = ::protobuf::MessageField::some(v);
-            }
-
-            // Mutable pointer to the field.
-            // If field is not initialized, it is initialized with default value first.
-            pub fn mut_path(&mut self) -> &mut super::super::super::path::Path {
-                self.path.mut_or_insert_default()
-            }
-
-            // Take field
-            pub fn take_path(&mut self) -> super::super::super::path::Path {
-                self.path.take().unwrap_or_else(|| super::super::super::path::Path::new())
-            }
-
-            // string query = 2;
-
-            pub fn query(&self) -> &str {
-                &self.query
-            }
-
-            pub fn clear_query(&mut self) {
-                self.query.clear();
-            }
-
-            // Param is passed by value, moved
-            pub fn set_query(&mut self, v: ::std::string::String) {
-                self.query = v;
-            }
-
-            // Mutable pointer to the field.
-            // If field is not initialized, it is initialized with default value first.
-            pub fn mut_query(&mut self) -> &mut ::std::string::String {
-                &mut self.query
-            }
-
-            // Take field
-            pub fn take_query(&mut self) -> ::std::string::String {
-                ::std::mem::replace(&mut self.query, ::std::string::String::new())
-            }
-
-            pub(in super::super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
-                let mut fields = ::std::vec::Vec::with_capacity(2);
-                let mut oneofs = ::std::vec::Vec::with_capacity(0);
-                fields.push(::protobuf::reflect::rt::v2::make_message_field_accessor::<_, super::super::super::path::Path>(
-                    "path",
-                    |m: &AliasedQuery| { &m.path },
-                    |m: &mut AliasedQuery| { &mut m.path },
-                ));
-                fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
-                    "query",
-                    |m: &AliasedQuery| { &m.query },
-                    |m: &mut AliasedQuery| { &mut m.query },
-                ));
-                ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<AliasedQuery>(
-                    "Transform.SelectSql.AliasedQuery",
-                    fields,
-                    oneofs,
-                )
-            }
-        }
-
-        impl ::protobuf::Message for AliasedQuery {
-            const NAME: &'static str = "AliasedQuery";
-
-            fn is_initialized(&self) -> bool {
-                true
-            }
-
-            fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
-                while let Some(tag) = is.read_raw_tag_or_eof()? {
-                    match tag {
-                        10 => {
-                            ::protobuf::rt::read_singular_message_into_field(is, &mut self.path)?;
-                        },
-                        18 => {
-                            self.query = is.read_string()?;
-                        },
-                        tag => {
-                            ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
-                        },
-                    };
-                }
-                ::std::result::Result::Ok(())
-            }
-
-            // Compute sizes of nested messages
-            #[allow(unused_variables)]
-            fn compute_size(&self) -> u64 {
-                let mut my_size = 0;
-                if let Some(v) = self.path.as_ref() {
-                    let len = v.compute_size();
-                    my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
-                }
-                if !self.query.is_empty() {
-                    my_size += ::protobuf::rt::string_size(2, &self.query);
-                }
-                my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
-                self.special_fields.cached_size().set(my_size as u32);
-                my_size
-            }
-
-            fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
-                if let Some(v) = self.path.as_ref() {
-                    ::protobuf::rt::write_message_field_with_cached_size(1, v, os)?;
-                }
-                if !self.query.is_empty() {
-                    os.write_string(2, &self.query)?;
-                }
-                os.write_unknown_fields(self.special_fields.unknown_fields())?;
-                ::std::result::Result::Ok(())
-            }
-
-            fn special_fields(&self) -> &::protobuf::SpecialFields {
-                &self.special_fields
-            }
-
-            fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
-                &mut self.special_fields
-            }
-
-            fn new() -> AliasedQuery {
-                AliasedQuery::new()
-            }
-
-            fn clear(&mut self) {
-                self.path.clear();
-                self.query.clear();
-                self.special_fields.clear();
-            }
-
-            fn default_instance() -> &'static AliasedQuery {
-                static instance: AliasedQuery = AliasedQuery {
-                    path: ::protobuf::MessageField::none(),
-                    query: ::std::string::String::new(),
-                    special_fields: ::protobuf::SpecialFields::new(),
+            if let ::std::option::Option::Some(ref v) = self.select {
+                match v {
+                    &dpselect_sql::Select::Query(ref v) => {
+                        my_size += ::protobuf::rt::string_size(1, &v);
+                    },
+                    &dpselect_sql::Select::AliasedQueries(ref v) => {
+                        let len = v.compute_size();
+                        my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+                    },
                 };
-                &instance
+            }
+            my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+            self.special_fields.cached_size().set(my_size as u32);
+            my_size
+        }
+
+        fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+            if self.sql_dialect != ::protobuf::EnumOrUnknown::new(SQLDialect::NONE) {
+                os.write_enum(3, ::protobuf::EnumOrUnknown::value(&self.sql_dialect))?;
+            }
+            if let ::std::option::Option::Some(ref v) = self.select {
+                match v {
+                    &dpselect_sql::Select::Query(ref v) => {
+                        os.write_string(1, v)?;
+                    },
+                    &dpselect_sql::Select::AliasedQueries(ref v) => {
+                        ::protobuf::rt::write_message_field_with_cached_size(2, v, os)?;
+                    },
+                };
+            }
+            os.write_unknown_fields(self.special_fields.unknown_fields())?;
+            ::std::result::Result::Ok(())
+        }
+
+        fn special_fields(&self) -> &::protobuf::SpecialFields {
+            &self.special_fields
+        }
+
+        fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+            &mut self.special_fields
+        }
+
+        fn new() -> DPSelectSql {
+            DPSelectSql::new()
+        }
+
+        fn clear(&mut self) {
+            self.select = ::std::option::Option::None;
+            self.select = ::std::option::Option::None;
+            self.sql_dialect = ::protobuf::EnumOrUnknown::new(SQLDialect::NONE);
+            self.special_fields.clear();
+        }
+
+        fn default_instance() -> &'static DPSelectSql {
+            static instance: DPSelectSql = DPSelectSql {
+                sql_dialect: ::protobuf::EnumOrUnknown::from_i32(0),
+                select: ::std::option::Option::None,
+                special_fields: ::protobuf::SpecialFields::new(),
+            };
+            &instance
+        }
+    }
+
+    impl ::protobuf::MessageFull for DPSelectSql {
+        fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
+            static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
+            descriptor.get(|| super::file_descriptor().message_by_package_relative_name("Transform.DPSelectSql").unwrap()).clone()
+        }
+    }
+
+    impl ::std::fmt::Display for DPSelectSql {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            ::protobuf::text_format::fmt(self, f)
+        }
+    }
+
+    impl ::protobuf::reflect::ProtobufValue for DPSelectSql {
+        type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
+    }
+
+    /// Nested message and enums of message `DPSelectSql`
+    pub mod dpselect_sql {
+
+        #[derive(Clone,PartialEq,Debug)]
+        #[non_exhaustive]
+        // @@protoc_insertion_point(oneof:Transform.DPSelectSql.select)
+        pub enum Select {
+            // @@protoc_insertion_point(oneof_field:Transform.DPSelectSql.query)
+            Query(::std::string::String),
+            // @@protoc_insertion_point(oneof_field:Transform.DPSelectSql.aliased_queries)
+            AliasedQueries(super::AliasedQueries),
+        }
+
+        impl ::protobuf::Oneof for Select {
+        }
+
+        impl ::protobuf::OneofFull for Select {
+            fn descriptor() -> ::protobuf::reflect::OneofDescriptor {
+                static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::OneofDescriptor> = ::protobuf::rt::Lazy::new();
+                descriptor.get(|| <super::DPSelectSql as ::protobuf::MessageFull>::descriptor().oneof_by_name("select").unwrap()).clone()
             }
         }
 
-        impl ::protobuf::MessageFull for AliasedQuery {
-            fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
-                static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
-                descriptor.get(|| super::super::file_descriptor().message_by_package_relative_name("Transform.SelectSql.AliasedQuery").unwrap()).clone()
+        impl Select {
+            pub(in super::super) fn generated_oneof_descriptor_data() -> ::protobuf::reflect::GeneratedOneofDescriptorData {
+                ::protobuf::reflect::GeneratedOneofDescriptorData::new::<Select>("select")
             }
         }
+    }
 
-        impl ::std::fmt::Display for AliasedQuery {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                ::protobuf::text_format::fmt(self, f)
-            }
+    #[derive(PartialEq,Clone,Default,Debug)]
+    // @@protoc_insertion_point(message:Transform.AliasedQueries)
+    pub struct AliasedQueries {
+        // message fields
+        // @@protoc_insertion_point(field:Transform.AliasedQueries.aliased_query)
+        pub aliased_query: ::std::vec::Vec<AliasedQuery>,
+        // special fields
+        // @@protoc_insertion_point(special_field:Transform.AliasedQueries.special_fields)
+        pub special_fields: ::protobuf::SpecialFields,
+    }
+
+    impl<'a> ::std::default::Default for &'a AliasedQueries {
+        fn default() -> &'a AliasedQueries {
+            <AliasedQueries as ::protobuf::Message>::default_instance()
+        }
+    }
+
+    impl AliasedQueries {
+        pub fn new() -> AliasedQueries {
+            ::std::default::Default::default()
         }
 
-        impl ::protobuf::reflect::ProtobufValue for AliasedQuery {
-            type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
+        // repeated .Transform.AliasedQuery aliased_query = 1;
+
+        pub fn aliased_query(&self) -> &[AliasedQuery] {
+            &self.aliased_query
         }
 
-        #[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
-        // @@protoc_insertion_point(enum:Transform.SelectSql.SQLDialect)
-        pub enum SQLDialect {
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.NONE)
-            NONE = 0,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.POSTGRES)
-            POSTGRES = 1,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.SQL_SERVER)
-            SQL_SERVER = 2,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.MY_SQL)
-            MY_SQL = 3,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.SQLLITE)
-            SQLLITE = 4,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.ORACLE)
-            ORACLE = 5,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.BIG_QUERY)
-            BIG_QUERY = 6,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.REDSHIFT)
-            REDSHIFT = 7,
-            // @@protoc_insertion_point(enum_value:Transform.SelectSql.SQLDialect.HIVE)
-            HIVE = 8,
+        pub fn clear_aliased_query(&mut self) {
+            self.aliased_query.clear();
         }
 
-        impl ::protobuf::Enum for SQLDialect {
-            const NAME: &'static str = "SQLDialect";
-
-            fn value(&self) -> i32 {
-                *self as i32
-            }
-
-            fn from_i32(value: i32) -> ::std::option::Option<SQLDialect> {
-                match value {
-                    0 => ::std::option::Option::Some(SQLDialect::NONE),
-                    1 => ::std::option::Option::Some(SQLDialect::POSTGRES),
-                    2 => ::std::option::Option::Some(SQLDialect::SQL_SERVER),
-                    3 => ::std::option::Option::Some(SQLDialect::MY_SQL),
-                    4 => ::std::option::Option::Some(SQLDialect::SQLLITE),
-                    5 => ::std::option::Option::Some(SQLDialect::ORACLE),
-                    6 => ::std::option::Option::Some(SQLDialect::BIG_QUERY),
-                    7 => ::std::option::Option::Some(SQLDialect::REDSHIFT),
-                    8 => ::std::option::Option::Some(SQLDialect::HIVE),
-                    _ => ::std::option::Option::None
-                }
-            }
-
-            const VALUES: &'static [SQLDialect] = &[
-                SQLDialect::NONE,
-                SQLDialect::POSTGRES,
-                SQLDialect::SQL_SERVER,
-                SQLDialect::MY_SQL,
-                SQLDialect::SQLLITE,
-                SQLDialect::ORACLE,
-                SQLDialect::BIG_QUERY,
-                SQLDialect::REDSHIFT,
-                SQLDialect::HIVE,
-            ];
+        // Param is passed by value, moved
+        pub fn set_aliased_query(&mut self, v: ::std::vec::Vec<AliasedQuery>) {
+            self.aliased_query = v;
         }
 
-        impl ::protobuf::EnumFull for SQLDialect {
-            fn enum_descriptor() -> ::protobuf::reflect::EnumDescriptor {
-                static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::Lazy::new();
-                descriptor.get(|| super::super::file_descriptor().enum_by_package_relative_name("Transform.SelectSql.SQLDialect").unwrap()).clone()
-            }
-
-            fn descriptor(&self) -> ::protobuf::reflect::EnumValueDescriptor {
-                let index = *self as usize;
-                Self::enum_descriptor().value_by_index(index)
-            }
+        // Mutable pointer to the field.
+        pub fn mut_aliased_query(&mut self) -> &mut ::std::vec::Vec<AliasedQuery> {
+            &mut self.aliased_query
         }
 
-        impl ::std::default::Default for SQLDialect {
-            fn default() -> Self {
-                SQLDialect::NONE
-            }
+        // Take field
+        pub fn take_aliased_query(&mut self) -> ::std::vec::Vec<AliasedQuery> {
+            ::std::mem::replace(&mut self.aliased_query, ::std::vec::Vec::new())
         }
 
-        impl SQLDialect {
-            pub(in super::super) fn generated_enum_descriptor_data() -> ::protobuf::reflect::GeneratedEnumDescriptorData {
-                ::protobuf::reflect::GeneratedEnumDescriptorData::new::<SQLDialect>("Transform.SelectSql.SQLDialect")
-            }
+        pub(in super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+            let mut fields = ::std::vec::Vec::with_capacity(1);
+            let mut oneofs = ::std::vec::Vec::with_capacity(0);
+            fields.push(::protobuf::reflect::rt::v2::make_vec_simpler_accessor::<_, _>(
+                "aliased_query",
+                |m: &AliasedQueries| { &m.aliased_query },
+                |m: &mut AliasedQueries| { &mut m.aliased_query },
+            ));
+            ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<AliasedQueries>(
+                "Transform.AliasedQueries",
+                fields,
+                oneofs,
+            )
         }
+    }
+
+    impl ::protobuf::Message for AliasedQueries {
+        const NAME: &'static str = "AliasedQueries";
+
+        fn is_initialized(&self) -> bool {
+            true
+        }
+
+        fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+            while let Some(tag) = is.read_raw_tag_or_eof()? {
+                match tag {
+                    10 => {
+                        self.aliased_query.push(is.read_message()?);
+                    },
+                    tag => {
+                        ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                    },
+                };
+            }
+            ::std::result::Result::Ok(())
+        }
+
+        // Compute sizes of nested messages
+        #[allow(unused_variables)]
+        fn compute_size(&self) -> u64 {
+            let mut my_size = 0;
+            for value in &self.aliased_query {
+                let len = value.compute_size();
+                my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+            };
+            my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+            self.special_fields.cached_size().set(my_size as u32);
+            my_size
+        }
+
+        fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+            for v in &self.aliased_query {
+                ::protobuf::rt::write_message_field_with_cached_size(1, v, os)?;
+            };
+            os.write_unknown_fields(self.special_fields.unknown_fields())?;
+            ::std::result::Result::Ok(())
+        }
+
+        fn special_fields(&self) -> &::protobuf::SpecialFields {
+            &self.special_fields
+        }
+
+        fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+            &mut self.special_fields
+        }
+
+        fn new() -> AliasedQueries {
+            AliasedQueries::new()
+        }
+
+        fn clear(&mut self) {
+            self.aliased_query.clear();
+            self.special_fields.clear();
+        }
+
+        fn default_instance() -> &'static AliasedQueries {
+            static instance: AliasedQueries = AliasedQueries {
+                aliased_query: ::std::vec::Vec::new(),
+                special_fields: ::protobuf::SpecialFields::new(),
+            };
+            &instance
+        }
+    }
+
+    impl ::protobuf::MessageFull for AliasedQueries {
+        fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
+            static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
+            descriptor.get(|| super::file_descriptor().message_by_package_relative_name("Transform.AliasedQueries").unwrap()).clone()
+        }
+    }
+
+    impl ::std::fmt::Display for AliasedQueries {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            ::protobuf::text_format::fmt(self, f)
+        }
+    }
+
+    impl ::protobuf::reflect::ProtobufValue for AliasedQueries {
+        type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
+    }
+
+    #[derive(PartialEq,Clone,Default,Debug)]
+    // @@protoc_insertion_point(message:Transform.AliasedQuery)
+    pub struct AliasedQuery {
+        // message fields
+        // @@protoc_insertion_point(field:Transform.AliasedQuery.path)
+        pub path: ::protobuf::MessageField<super::super::path::Path>,
+        // @@protoc_insertion_point(field:Transform.AliasedQuery.query)
+        pub query: ::std::string::String,
+        // special fields
+        // @@protoc_insertion_point(special_field:Transform.AliasedQuery.special_fields)
+        pub special_fields: ::protobuf::SpecialFields,
+    }
+
+    impl<'a> ::std::default::Default for &'a AliasedQuery {
+        fn default() -> &'a AliasedQuery {
+            <AliasedQuery as ::protobuf::Message>::default_instance()
+        }
+    }
+
+    impl AliasedQuery {
+        pub fn new() -> AliasedQuery {
+            ::std::default::Default::default()
+        }
+
+        // .sarus_data_spec.Path path = 1;
+
+        pub fn path(&self) -> &super::super::path::Path {
+            self.path.as_ref().unwrap_or_else(|| <super::super::path::Path as ::protobuf::Message>::default_instance())
+        }
+
+        pub fn clear_path(&mut self) {
+            self.path.clear();
+        }
+
+        pub fn has_path(&self) -> bool {
+            self.path.is_some()
+        }
+
+        // Param is passed by value, moved
+        pub fn set_path(&mut self, v: super::super::path::Path) {
+            self.path = ::protobuf::MessageField::some(v);
+        }
+
+        // Mutable pointer to the field.
+        // If field is not initialized, it is initialized with default value first.
+        pub fn mut_path(&mut self) -> &mut super::super::path::Path {
+            self.path.mut_or_insert_default()
+        }
+
+        // Take field
+        pub fn take_path(&mut self) -> super::super::path::Path {
+            self.path.take().unwrap_or_else(|| super::super::path::Path::new())
+        }
+
+        // string query = 2;
+
+        pub fn query(&self) -> &str {
+            &self.query
+        }
+
+        pub fn clear_query(&mut self) {
+            self.query.clear();
+        }
+
+        // Param is passed by value, moved
+        pub fn set_query(&mut self, v: ::std::string::String) {
+            self.query = v;
+        }
+
+        // Mutable pointer to the field.
+        // If field is not initialized, it is initialized with default value first.
+        pub fn mut_query(&mut self) -> &mut ::std::string::String {
+            &mut self.query
+        }
+
+        // Take field
+        pub fn take_query(&mut self) -> ::std::string::String {
+            ::std::mem::replace(&mut self.query, ::std::string::String::new())
+        }
+
+        pub(in super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+            let mut fields = ::std::vec::Vec::with_capacity(2);
+            let mut oneofs = ::std::vec::Vec::with_capacity(0);
+            fields.push(::protobuf::reflect::rt::v2::make_message_field_accessor::<_, super::super::path::Path>(
+                "path",
+                |m: &AliasedQuery| { &m.path },
+                |m: &mut AliasedQuery| { &mut m.path },
+            ));
+            fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+                "query",
+                |m: &AliasedQuery| { &m.query },
+                |m: &mut AliasedQuery| { &mut m.query },
+            ));
+            ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<AliasedQuery>(
+                "Transform.AliasedQuery",
+                fields,
+                oneofs,
+            )
+        }
+    }
+
+    impl ::protobuf::Message for AliasedQuery {
+        const NAME: &'static str = "AliasedQuery";
+
+        fn is_initialized(&self) -> bool {
+            true
+        }
+
+        fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+            while let Some(tag) = is.read_raw_tag_or_eof()? {
+                match tag {
+                    10 => {
+                        ::protobuf::rt::read_singular_message_into_field(is, &mut self.path)?;
+                    },
+                    18 => {
+                        self.query = is.read_string()?;
+                    },
+                    tag => {
+                        ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                    },
+                };
+            }
+            ::std::result::Result::Ok(())
+        }
+
+        // Compute sizes of nested messages
+        #[allow(unused_variables)]
+        fn compute_size(&self) -> u64 {
+            let mut my_size = 0;
+            if let Some(v) = self.path.as_ref() {
+                let len = v.compute_size();
+                my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+            }
+            if !self.query.is_empty() {
+                my_size += ::protobuf::rt::string_size(2, &self.query);
+            }
+            my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+            self.special_fields.cached_size().set(my_size as u32);
+            my_size
+        }
+
+        fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+            if let Some(v) = self.path.as_ref() {
+                ::protobuf::rt::write_message_field_with_cached_size(1, v, os)?;
+            }
+            if !self.query.is_empty() {
+                os.write_string(2, &self.query)?;
+            }
+            os.write_unknown_fields(self.special_fields.unknown_fields())?;
+            ::std::result::Result::Ok(())
+        }
+
+        fn special_fields(&self) -> &::protobuf::SpecialFields {
+            &self.special_fields
+        }
+
+        fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+            &mut self.special_fields
+        }
+
+        fn new() -> AliasedQuery {
+            AliasedQuery::new()
+        }
+
+        fn clear(&mut self) {
+            self.path.clear();
+            self.query.clear();
+            self.special_fields.clear();
+        }
+
+        fn default_instance() -> &'static AliasedQuery {
+            static instance: AliasedQuery = AliasedQuery {
+                path: ::protobuf::MessageField::none(),
+                query: ::std::string::String::new(),
+                special_fields: ::protobuf::SpecialFields::new(),
+            };
+            &instance
+        }
+    }
+
+    impl ::protobuf::MessageFull for AliasedQuery {
+        fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
+            static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
+            descriptor.get(|| super::file_descriptor().message_by_package_relative_name("Transform.AliasedQuery").unwrap()).clone()
+        }
+    }
+
+    impl ::std::fmt::Display for AliasedQuery {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            ::protobuf::text_format::fmt(self, f)
+        }
+    }
+
+    impl ::protobuf::reflect::ProtobufValue for AliasedQuery {
+        type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
     }
 
     #[derive(PartialEq,Clone,Default,Debug)]
@@ -9869,12 +10237,197 @@ pub mod transform {
     impl ::protobuf::reflect::ProtobufValue for Extract {
         type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
     }
+
+    #[derive(PartialEq,Clone,Default,Debug)]
+    // @@protoc_insertion_point(message:Transform.ValidatedUserType)
+    pub struct ValidatedUserType {
+        // special fields
+        // @@protoc_insertion_point(special_field:Transform.ValidatedUserType.special_fields)
+        pub special_fields: ::protobuf::SpecialFields,
+    }
+
+    impl<'a> ::std::default::Default for &'a ValidatedUserType {
+        fn default() -> &'a ValidatedUserType {
+            <ValidatedUserType as ::protobuf::Message>::default_instance()
+        }
+    }
+
+    impl ValidatedUserType {
+        pub fn new() -> ValidatedUserType {
+            ::std::default::Default::default()
+        }
+
+        pub(in super) fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+            let mut fields = ::std::vec::Vec::with_capacity(0);
+            let mut oneofs = ::std::vec::Vec::with_capacity(0);
+            ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<ValidatedUserType>(
+                "Transform.ValidatedUserType",
+                fields,
+                oneofs,
+            )
+        }
+    }
+
+    impl ::protobuf::Message for ValidatedUserType {
+        const NAME: &'static str = "ValidatedUserType";
+
+        fn is_initialized(&self) -> bool {
+            true
+        }
+
+        fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+            while let Some(tag) = is.read_raw_tag_or_eof()? {
+                match tag {
+                    tag => {
+                        ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                    },
+                };
+            }
+            ::std::result::Result::Ok(())
+        }
+
+        // Compute sizes of nested messages
+        #[allow(unused_variables)]
+        fn compute_size(&self) -> u64 {
+            let mut my_size = 0;
+            my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+            self.special_fields.cached_size().set(my_size as u32);
+            my_size
+        }
+
+        fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+            os.write_unknown_fields(self.special_fields.unknown_fields())?;
+            ::std::result::Result::Ok(())
+        }
+
+        fn special_fields(&self) -> &::protobuf::SpecialFields {
+            &self.special_fields
+        }
+
+        fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+            &mut self.special_fields
+        }
+
+        fn new() -> ValidatedUserType {
+            ValidatedUserType::new()
+        }
+
+        fn clear(&mut self) {
+            self.special_fields.clear();
+        }
+
+        fn default_instance() -> &'static ValidatedUserType {
+            static instance: ValidatedUserType = ValidatedUserType {
+                special_fields: ::protobuf::SpecialFields::new(),
+            };
+            &instance
+        }
+    }
+
+    impl ::protobuf::MessageFull for ValidatedUserType {
+        fn descriptor() -> ::protobuf::reflect::MessageDescriptor {
+            static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::Lazy::new();
+            descriptor.get(|| super::file_descriptor().message_by_package_relative_name("Transform.ValidatedUserType").unwrap()).clone()
+        }
+    }
+
+    impl ::std::fmt::Display for ValidatedUserType {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            ::protobuf::text_format::fmt(self, f)
+        }
+    }
+
+    impl ::protobuf::reflect::ProtobufValue for ValidatedUserType {
+        type RuntimeType = ::protobuf::reflect::rt::RuntimeTypeMessage<Self>;
+    }
+
+    #[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+    // @@protoc_insertion_point(enum:Transform.SQLDialect)
+    pub enum SQLDialect {
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.NONE)
+        NONE = 0,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.POSTGRES)
+        POSTGRES = 1,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.SQL_SERVER)
+        SQL_SERVER = 2,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.MY_SQL)
+        MY_SQL = 3,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.SQLLITE)
+        SQLLITE = 4,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.ORACLE)
+        ORACLE = 5,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.BIG_QUERY)
+        BIG_QUERY = 6,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.REDSHIFT)
+        REDSHIFT = 7,
+        // @@protoc_insertion_point(enum_value:Transform.SQLDialect.HIVE)
+        HIVE = 8,
+    }
+
+    impl ::protobuf::Enum for SQLDialect {
+        const NAME: &'static str = "SQLDialect";
+
+        fn value(&self) -> i32 {
+            *self as i32
+        }
+
+        fn from_i32(value: i32) -> ::std::option::Option<SQLDialect> {
+            match value {
+                0 => ::std::option::Option::Some(SQLDialect::NONE),
+                1 => ::std::option::Option::Some(SQLDialect::POSTGRES),
+                2 => ::std::option::Option::Some(SQLDialect::SQL_SERVER),
+                3 => ::std::option::Option::Some(SQLDialect::MY_SQL),
+                4 => ::std::option::Option::Some(SQLDialect::SQLLITE),
+                5 => ::std::option::Option::Some(SQLDialect::ORACLE),
+                6 => ::std::option::Option::Some(SQLDialect::BIG_QUERY),
+                7 => ::std::option::Option::Some(SQLDialect::REDSHIFT),
+                8 => ::std::option::Option::Some(SQLDialect::HIVE),
+                _ => ::std::option::Option::None
+            }
+        }
+
+        const VALUES: &'static [SQLDialect] = &[
+            SQLDialect::NONE,
+            SQLDialect::POSTGRES,
+            SQLDialect::SQL_SERVER,
+            SQLDialect::MY_SQL,
+            SQLDialect::SQLLITE,
+            SQLDialect::ORACLE,
+            SQLDialect::BIG_QUERY,
+            SQLDialect::REDSHIFT,
+            SQLDialect::HIVE,
+        ];
+    }
+
+    impl ::protobuf::EnumFull for SQLDialect {
+        fn enum_descriptor() -> ::protobuf::reflect::EnumDescriptor {
+            static descriptor: ::protobuf::rt::Lazy<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::Lazy::new();
+            descriptor.get(|| super::file_descriptor().enum_by_package_relative_name("Transform.SQLDialect").unwrap()).clone()
+        }
+
+        fn descriptor(&self) -> ::protobuf::reflect::EnumValueDescriptor {
+            let index = *self as usize;
+            Self::enum_descriptor().value_by_index(index)
+        }
+    }
+
+    impl ::std::default::Default for SQLDialect {
+        fn default() -> Self {
+            SQLDialect::NONE
+        }
+    }
+
+    impl SQLDialect {
+        pub(in super) fn generated_enum_descriptor_data() -> ::protobuf::reflect::GeneratedEnumDescriptorData {
+            ::protobuf::reflect::GeneratedEnumDescriptorData::new::<SQLDialect>("Transform.SQLDialect")
+        }
+    }
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n(sarus_data_spec/protobuf/transform.proto\x1a#sarus_data_spec/protobuf\
     /type.proto\x1a#sarus_data_spec/protobuf/path.proto\x1a%sarus_data_spec/\
-    protobuf/scalar.proto\"\xca&\n\tTransform\x12\x12\n\x04uuid\x18\x01\x20\
+    protobuf/scalar.proto\"\xff(\n\tTransform\x12\x12\n\x04uuid\x18\x01\x20\
     \x01(\tR\x04uuid\x12\x12\n\x04name\x18\x02\x20\x01(\tR\x04name\x12\x10\n\
     \x03doc\x18\x03\x20\x01(\tR\x03doc\x12#\n\x04spec\x18\x04\x20\x01(\x0b2\
     \x0f.Transform.SpecR\x04spec\x12:\n\nproperties\x18\x05\x20\x03(\x0b2\
@@ -9882,7 +10435,7 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x06\x20\x01(\x08R\ninversible\x12+\n\x11schema_preserving\x18\x07\x20\
     \x01(\x08R\x10schemaPreserving\x1a=\n\x0fPropertiesEntry\x12\x10\n\x03ke\
     y\x18\x01\x20\x01(\tR\x03key\x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05v\
-    alue:\x028\x01\x1a\xf3\r\n\x04Spec\x121\n\x08identity\x18\x01\x20\x01(\
+    alue:\x028\x01\x1a\x81\x0f\n\x04Spec\x121\n\x08identity\x18\x01\x20\x01(\
     \x0b2\x13.Transform.IdentityH\0R\x08identity\x121\n\x08variable\x18\x02\
     \x20\x01(\x0b2\x13.Transform.VariableH\0R\x08variable\x121\n\x08composed\
     \x18\x03\x20\x01(\x0b2\x13.Transform.ComposedH\0R\x08composed\x12.\n\x07\
@@ -9919,74 +10472,81 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x11relationship_spec\x18\x1d\x20\x01(\x0b2\x1b.Transform.Relationship\
     SpecH\0R\x10relationshipSpec\x12V\n\x15differentiated_sample\x18\x1e\x20\
     \x01(\x0b2\x1f.Transform.DifferentiatedSampleH\0R\x14differentiatedSampl\
-    eB\x06\n\x04spec\x1a\xd4\x07\n\x08External\x12\x1c\n\targuments\x18\x01\
-    \x20\x01(\x0cR\targuments\x12'\n\x0fnamed_arguments\x18\x02\x20\x01(\x0c\
-    R\x0enamedArguments\x12E\n\rop_identifier\x18\x03\x20\x01(\x0b2\x20.Tran\
-    sform.External.OpIdentifierR\x0copIdentifier\x1a\x9f\x04\n\x0cOpIdentifi\
-    er\x12+\n\x03std\x18\x01\x20\x01(\x0b2\x17.Transform.External.StdH\0R\
-    \x03std\x124\n\x06pandas\x18\x02\x20\x01(\x0b2\x1a.Transform.External.Pa\
-    ndasH\0R\x06pandas\x121\n\x05numpy\x18\x03\x20\x01(\x0b2\x19.Transform.E\
-    xternal.NumpyH\0R\x05numpy\x12@\n\ntensorflow\x18\x04\x20\x01(\x0b2\x1e.\
-    Transform.External.TensorflowH\0R\ntensorflow\x127\n\x07sklearn\x18\x05\
-    \x20\x01(\x0b2\x1b.Transform.External.SklearnH\0R\x07sklearn\x12P\n\x10p\
-    andas_profiling\x18\x06\x20\x01(\x0b2#.Transform.External.PandasProfilin\
-    gH\0R\x0fpandasProfiling\x127\n\x07xgboost\x18\x07\x20\x01(\x0b2\x1b.Tra\
-    nsform.External.XGBoostH\0R\x07xgboost\x121\n\x05skopt\x18\x08\x20\x01(\
-    \x0b2\x19.Transform.External.SkoptH\0R\x05skopt\x12:\n\x08imblearn\x18\t\
-    \x20\x01(\x0b2\x1c.Transform.External.ImblearnH\0R\x08imblearnB\x04\n\
-    \x02op\x1a\x19\n\x03Std\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\
-    \x1a\x1c\n\x06Pandas\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\
-    \x1b\n\x05Numpy\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x20\n\
-    \nTensorflow\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1d\n\x07\
-    Sklearn\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a%\n\x0fPandasPr\
-    ofiling\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1d\n\x07XGBoo\
-    st\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1b\n\x05Skopt\x12\
-    \x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1e\n\x08Imblearn\x12\x12\
-    \n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\n\n\x08Identity\x1a:\n\x08Var\
-    iable\x12\x1a\n\x08position\x18\x01\x20\x01(\x05R\x08position\x12\x12\n\
-    \x04name\x18\x02\x20\x01(\tR\x04name\x1a\xdb\x01\n\x08Composed\x12\x1c\n\
-    \ttransform\x18\x01\x20\x01(\tR\ttransform\x12\x1c\n\targuments\x18\x02\
-    \x20\x03(\tR\targuments\x12P\n\x0fnamed_arguments\x18\x03\x20\x03(\x0b2'\
-    .Transform.Composed.NamedArgumentsEntryR\x0enamedArguments\x1aA\n\x13Nam\
-    edArgumentsEntry\x12\x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x14\n\
-    \x05value\x18\x02\x20\x01(\tR\x05value:\x028\x01\x1a@\n\x07Project\x125\
-    \n\nprojection\x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.TypeR\nprojecti\
-    on\x1a7\n\x06Filter\x12-\n\x06filter\x18\x01\x20\x01(\x0b2\x15.sarus_dat\
-    a_spec.TypeR\x06filter\x1a\t\n\x07Shuffle\x1a-\n\x04Join\x12%\n\x02on\
-    \x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.TypeR\x02on\x1a1\n\x04Cast\
-    \x12)\n\x04type\x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.TypeR\x04type\
-    \x1aw\n\x06Sample\x12\x1c\n\x08fraction\x18\x01\x20\x01(\x01H\0R\x08frac\
-    tion\x12\x14\n\x04size\x18\x02\x20\x01(\x03H\0R\x04size\x12+\n\x04seed\
-    \x18\x03\x20\x01(\x0b2\x17.sarus_data_spec.ScalarR\x04seedB\x0c\n\npropo\
-    rtion\x1a\x82\x01\n\x0fSchemaInference\x12F\n\x0bcast_policy\x18\x01\x20\
-    \x01(\x0e2%.Transform.SchemaInference.CastPolicyR\ncastPolicy\"'\n\nCast\
-    Policy\x12\x08\n\x04NONE\x10\0\x12\x0f\n\x0bMOST_LIKELY\x10\x01\x1a\x1b\
-    \n\x07GroupBy\x12\x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x1a\x0b\n\tSyn\
-    thetic\x1a\x0e\n\x0cUserSettings\x1a>\n\x15AutomaticUserSettings\x12%\n\
-    \x0emax_categories\x18\x01\x20\x01(\x03R\rmaxCategories\x1a\t\n\x07Prote\
-    ct\x1a\x0b\n\tTranscode\x1a\x12\n\x10InverseTranscode\x1a\x85\x01\n\x14D\
-    ifferentiatedSample\x12\x1c\n\x08fraction\x18\x01\x20\x01(\x01H\0R\x08fr\
-    action\x12\x14\n\x04size\x18\x02\x20\x01(\x03H\0R\x04size\x12+\n\x04seed\
-    \x18\x03\x20\x01(\x0b2\x17.sarus_data_spec.ScalarR\x04seedB\x0c\n\npropo\
-    rtion\x1a\x10\n\x0eProtectedPaths\x1a\r\n\x0bPublicPaths\x1a4\n\x07GetIt\
-    em\x12)\n\x04path\x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.PathR\x04pat\
-    h\x1a\x0e\n\x0cAssignBudget\x1a\x11\n\x0fAutomaticBudget\x1a\x12\n\x10At\
-    tributesBudget\x1a\n\n\x08SDBudget\x1a3\n\nDeriveSeed\x12%\n\x0erandom_i\
-    nteger\x18\x01\x20\x01(\x03R\rrandomInteger\x1a\x0b\n\tGroupByPE\x1a\x10\
-    \n\x0eSamplingRatios\x1a\x12\n\x10RelationshipSpec\x1a\xed\x03\n\tSelect\
-    Sql\x12\x16\n\x05query\x18\x01\x20\x01(\tH\0R\x05query\x12N\n\x0faliased\
-    _queries\x18\x02\x20\x01(\x0b2#.Transform.SelectSql.AliasedQueriesH\0R\
-    \x0ealiasedQueries\x12@\n\x0bsql_dialect\x18\x03\x20\x01(\x0e2\x1f.Trans\
-    form.SelectSql.SQLDialectR\nsqlDialect\x1aX\n\x0eAliasedQueries\x12F\n\r\
-    aliased_query\x18\x01\x20\x03(\x0b2!.Transform.SelectSql.AliasedQueryR\
-    \x0caliasedQuery\x1aO\n\x0cAliasedQuery\x12)\n\x04path\x18\x01\x20\x01(\
-    \x0b2\x15.sarus_data_spec.PathR\x04path\x12\x14\n\x05query\x18\x02\x20\
-    \x01(\tR\x05query\"\x80\x01\n\nSQLDialect\x12\x08\n\x04NONE\x10\0\x12\
-    \x0c\n\x08POSTGRES\x10\x01\x12\x0e\n\nSQL_SERVER\x10\x02\x12\n\n\x06MY_S\
-    QL\x10\x03\x12\x0b\n\x07SQLLITE\x10\x04\x12\n\n\x06ORACLE\x10\x05\x12\r\
-    \n\tBIG_QUERY\x10\x06\x12\x0c\n\x08REDSHIFT\x10\x07\x12\x08\n\x04HIVE\
-    \x10\x08B\x08\n\x06select\x1a\x1d\n\x07Extract\x12\x12\n\x04size\x18\x01\
-    \x20\x01(\x05R\x04sizeb\x06proto3\
+    e\x12N\n\x13validated_user_type\x18\x1f\x20\x01(\x0b2\x1c.Transform.Vali\
+    datedUserTypeH\0R\x11validatedUserType\x12<\n\rdp_select_sql\x18\x20\x20\
+    \x01(\x0b2\x16.Transform.DPSelectSqlH\0R\x0bdpSelectSqlB\x06\n\x04spec\
+    \x1a\xd4\x07\n\x08External\x12\x1c\n\targuments\x18\x01\x20\x01(\x0cR\ta\
+    rguments\x12'\n\x0fnamed_arguments\x18\x02\x20\x01(\x0cR\x0enamedArgumen\
+    ts\x12E\n\rop_identifier\x18\x03\x20\x01(\x0b2\x20.Transform.External.Op\
+    IdentifierR\x0copIdentifier\x1a\x9f\x04\n\x0cOpIdentifier\x12+\n\x03std\
+    \x18\x01\x20\x01(\x0b2\x17.Transform.External.StdH\0R\x03std\x124\n\x06p\
+    andas\x18\x02\x20\x01(\x0b2\x1a.Transform.External.PandasH\0R\x06pandas\
+    \x121\n\x05numpy\x18\x03\x20\x01(\x0b2\x19.Transform.External.NumpyH\0R\
+    \x05numpy\x12@\n\ntensorflow\x18\x04\x20\x01(\x0b2\x1e.Transform.Externa\
+    l.TensorflowH\0R\ntensorflow\x127\n\x07sklearn\x18\x05\x20\x01(\x0b2\x1b\
+    .Transform.External.SklearnH\0R\x07sklearn\x12P\n\x10pandas_profiling\
+    \x18\x06\x20\x01(\x0b2#.Transform.External.PandasProfilingH\0R\x0fpandas\
+    Profiling\x127\n\x07xgboost\x18\x07\x20\x01(\x0b2\x1b.Transform.External\
+    .XGBoostH\0R\x07xgboost\x121\n\x05skopt\x18\x08\x20\x01(\x0b2\x19.Transf\
+    orm.External.SkoptH\0R\x05skopt\x12:\n\x08imblearn\x18\t\x20\x01(\x0b2\
+    \x1c.Transform.External.ImblearnH\0R\x08imblearnB\x04\n\x02op\x1a\x19\n\
+    \x03Std\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1c\n\x06Panda\
+    s\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1b\n\x05Numpy\x12\
+    \x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x20\n\nTensorflow\x12\x12\
+    \n\x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1d\n\x07Sklearn\x12\x12\n\
+    \x04name\x18\x01\x20\x01(\tR\x04name\x1a%\n\x0fPandasProfiling\x12\x12\n\
+    \x04name\x18\x01\x20\x01(\tR\x04name\x1a\x1d\n\x07XGBoost\x12\x12\n\x04n\
+    ame\x18\x01\x20\x01(\tR\x04name\x1a\x1b\n\x05Skopt\x12\x12\n\x04name\x18\
+    \x01\x20\x01(\tR\x04name\x1a\x1e\n\x08Imblearn\x12\x12\n\x04name\x18\x01\
+    \x20\x01(\tR\x04name\x1a\n\n\x08Identity\x1a:\n\x08Variable\x12\x1a\n\
+    \x08position\x18\x01\x20\x01(\x05R\x08position\x12\x12\n\x04name\x18\x02\
+    \x20\x01(\tR\x04name\x1a\xdb\x01\n\x08Composed\x12\x1c\n\ttransform\x18\
+    \x01\x20\x01(\tR\ttransform\x12\x1c\n\targuments\x18\x02\x20\x03(\tR\tar\
+    guments\x12P\n\x0fnamed_arguments\x18\x03\x20\x03(\x0b2'.Transform.Compo\
+    sed.NamedArgumentsEntryR\x0enamedArguments\x1aA\n\x13NamedArgumentsEntry\
+    \x12\x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x14\n\x05value\x18\x02\
+    \x20\x01(\tR\x05value:\x028\x01\x1a@\n\x07Project\x125\n\nprojection\x18\
+    \x01\x20\x01(\x0b2\x15.sarus_data_spec.TypeR\nprojection\x1a7\n\x06Filte\
+    r\x12-\n\x06filter\x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.TypeR\x06fi\
+    lter\x1a\t\n\x07Shuffle\x1a-\n\x04Join\x12%\n\x02on\x18\x01\x20\x01(\x0b\
+    2\x15.sarus_data_spec.TypeR\x02on\x1a1\n\x04Cast\x12)\n\x04type\x18\x01\
+    \x20\x01(\x0b2\x15.sarus_data_spec.TypeR\x04type\x1aw\n\x06Sample\x12\
+    \x1c\n\x08fraction\x18\x01\x20\x01(\x01H\0R\x08fraction\x12\x14\n\x04siz\
+    e\x18\x02\x20\x01(\x03H\0R\x04size\x12+\n\x04seed\x18\x03\x20\x01(\x0b2\
+    \x17.sarus_data_spec.ScalarR\x04seedB\x0c\n\nproportion\x1a\x82\x01\n\
+    \x0fSchemaInference\x12F\n\x0bcast_policy\x18\x01\x20\x01(\x0e2%.Transfo\
+    rm.SchemaInference.CastPolicyR\ncastPolicy\"'\n\nCastPolicy\x12\x08\n\
+    \x04NONE\x10\0\x12\x0f\n\x0bMOST_LIKELY\x10\x01\x1a\x1b\n\x07GroupBy\x12\
+    \x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x1a\x0b\n\tSynthetic\x1a\x0e\n\
+    \x0cUserSettings\x1a>\n\x15AutomaticUserSettings\x12%\n\x0emax_categorie\
+    s\x18\x01\x20\x01(\x03R\rmaxCategories\x1a\t\n\x07Protect\x1a\x0b\n\tTra\
+    nscode\x1a\x12\n\x10InverseTranscode\x1a\x85\x01\n\x14DifferentiatedSamp\
+    le\x12\x1c\n\x08fraction\x18\x01\x20\x01(\x01H\0R\x08fraction\x12\x14\n\
+    \x04size\x18\x02\x20\x01(\x03H\0R\x04size\x12+\n\x04seed\x18\x03\x20\x01\
+    (\x0b2\x17.sarus_data_spec.ScalarR\x04seedB\x0c\n\nproportion\x1a\x10\n\
+    \x0eProtectedPaths\x1a\r\n\x0bPublicPaths\x1a4\n\x07GetItem\x12)\n\x04pa\
+    th\x18\x01\x20\x01(\x0b2\x15.sarus_data_spec.PathR\x04path\x1a\x0e\n\x0c\
+    AssignBudget\x1a\x11\n\x0fAutomaticBudget\x1a\x12\n\x10AttributesBudget\
+    \x1a\n\n\x08SDBudget\x1a3\n\nDeriveSeed\x12%\n\x0erandom_integer\x18\x01\
+    \x20\x01(\x03R\rrandomInteger\x1a\x0b\n\tGroupByPE\x1a\x10\n\x0eSampling\
+    Ratios\x1a\x12\n\x10RelationshipSpec\x1a\xab\x01\n\tSelectSql\x12\x16\n\
+    \x05query\x18\x01\x20\x01(\tH\0R\x05query\x12D\n\x0faliased_queries\x18\
+    \x02\x20\x01(\x0b2\x19.Transform.AliasedQueriesH\0R\x0ealiasedQueries\
+    \x126\n\x0bsql_dialect\x18\x03\x20\x01(\x0e2\x15.Transform.SQLDialectR\n\
+    sqlDialectB\x08\n\x06select\x1a\xad\x01\n\x0bDPSelectSql\x12\x16\n\x05qu\
+    ery\x18\x01\x20\x01(\tH\0R\x05query\x12D\n\x0faliased_queries\x18\x02\
+    \x20\x01(\x0b2\x19.Transform.AliasedQueriesH\0R\x0ealiasedQueries\x126\n\
+    \x0bsql_dialect\x18\x03\x20\x01(\x0e2\x15.Transform.SQLDialectR\nsqlDial\
+    ectB\x08\n\x06select\x1aN\n\x0eAliasedQueries\x12<\n\raliased_query\x18\
+    \x01\x20\x03(\x0b2\x17.Transform.AliasedQueryR\x0caliasedQuery\x1aO\n\
+    \x0cAliasedQuery\x12)\n\x04path\x18\x01\x20\x01(\x0b2\x15.sarus_data_spe\
+    c.PathR\x04path\x12\x14\n\x05query\x18\x02\x20\x01(\tR\x05query\x1a\x1d\
+    \n\x07Extract\x12\x12\n\x04size\x18\x01\x20\x01(\x05R\x04size\x1a\x13\n\
+    \x11ValidatedUserType\"\x80\x01\n\nSQLDialect\x12\x08\n\x04NONE\x10\0\
+    \x12\x0c\n\x08POSTGRES\x10\x01\x12\x0e\n\nSQL_SERVER\x10\x02\x12\n\n\x06\
+    MY_SQL\x10\x03\x12\x0b\n\x07SQLLITE\x10\x04\x12\n\n\x06ORACLE\x10\x05\
+    \x12\r\n\tBIG_QUERY\x10\x06\x12\x0c\n\x08REDSHIFT\x10\x07\x12\x08\n\x04H\
+    IVE\x10\x08b\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
@@ -10007,7 +10567,7 @@ pub fn file_descriptor() -> &'static ::protobuf::reflect::FileDescriptor {
             deps.push(super::type_::file_descriptor().clone());
             deps.push(super::path::file_descriptor().clone());
             deps.push(super::scalar::file_descriptor().clone());
-            let mut messages = ::std::vec::Vec::with_capacity(46);
+            let mut messages = ::std::vec::Vec::with_capacity(48);
             messages.push(Transform::generated_message_descriptor_data());
             messages.push(transform::Spec::generated_message_descriptor_data());
             messages.push(transform::External::generated_message_descriptor_data());
@@ -10041,7 +10601,11 @@ pub fn file_descriptor() -> &'static ::protobuf::reflect::FileDescriptor {
             messages.push(transform::SamplingRatios::generated_message_descriptor_data());
             messages.push(transform::RelationshipSpec::generated_message_descriptor_data());
             messages.push(transform::SelectSql::generated_message_descriptor_data());
+            messages.push(transform::DPSelectSql::generated_message_descriptor_data());
+            messages.push(transform::AliasedQueries::generated_message_descriptor_data());
+            messages.push(transform::AliasedQuery::generated_message_descriptor_data());
             messages.push(transform::Extract::generated_message_descriptor_data());
+            messages.push(transform::ValidatedUserType::generated_message_descriptor_data());
             messages.push(transform::external::OpIdentifier::generated_message_descriptor_data());
             messages.push(transform::external::Std::generated_message_descriptor_data());
             messages.push(transform::external::Pandas::generated_message_descriptor_data());
@@ -10052,11 +10616,9 @@ pub fn file_descriptor() -> &'static ::protobuf::reflect::FileDescriptor {
             messages.push(transform::external::XGBoost::generated_message_descriptor_data());
             messages.push(transform::external::Skopt::generated_message_descriptor_data());
             messages.push(transform::external::Imblearn::generated_message_descriptor_data());
-            messages.push(transform::select_sql::AliasedQueries::generated_message_descriptor_data());
-            messages.push(transform::select_sql::AliasedQuery::generated_message_descriptor_data());
             let mut enums = ::std::vec::Vec::with_capacity(2);
+            enums.push(transform::SQLDialect::generated_enum_descriptor_data());
             enums.push(transform::schema_inference::CastPolicy::generated_enum_descriptor_data());
-            enums.push(transform::select_sql::SQLDialect::generated_enum_descriptor_data());
             ::protobuf::reflect::GeneratedFileDescriptor::new_generated(
                 file_descriptor_proto(),
                 deps,

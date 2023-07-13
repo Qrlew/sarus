@@ -4,8 +4,6 @@
 //! https://www.sqlalchemy.org/
 //! https://www.postgresql.org/docs/14/index.html
 
-pub mod examples;
-
 use crate::protobuf::{
     dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
@@ -1681,24 +1679,6 @@ mod tests {
 
     #[test]
     fn test_function() -> Result<()> {
-        Ok(())
-    }
-
-    #[test]
-    fn test_retail_demo() -> Result<()> {
-        let dataset = Dataset::parse_from_dataset_schema_size(
-            examples::retail_demo::DATASET,
-            examples::retail_demo::SCHEMA,
-            examples::retail_demo::SIZE,
-        )?;
-
-        println!("{}", dataset.relations());
-        for (i, r) in dataset.relations() {
-            println!("{}", r);
-            println!(" size = {}", r.size());
-            println!(" schema = {}", r.schema());
-            println!("---");
-        }
         Ok(())
     }
 }

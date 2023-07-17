@@ -64,6 +64,8 @@ pub type Result<T> = result::Result<T, Error>;
 Definition of the dataset
  */
 
+const SARUS_DATA: &str = "sarus_data";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dataset {
     dataset: dataset::Dataset,
@@ -103,7 +105,7 @@ impl Dataset {
                 .fields()
                 .iter()
                 .find_map(|f| {
-                    if f.name() == "data" {
+                    if f.name() == SARUS_DATA {
                         Some(f.type_())
                     } else {
                         Some(self.schema.type_())

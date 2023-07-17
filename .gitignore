@@ -14,5 +14,5 @@ Cargo.lock
 *.pdb
 
 # NG: remove generated files
-src/protobuf/*.rs
-!src/protobuf/mod.rs
+# src/protobuf/*.rs
+# !src/protobuf/mod.rs

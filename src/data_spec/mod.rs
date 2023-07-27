@@ -124,17 +124,8 @@ impl Dataset {
     pub fn relations(&self) -> Hierarchy<Rc<Relation>> {
         table_structs(self.schema_type_data(), self.size())
             .into_iter()
-            .map(|(i, t, s)| {
-                let schema: Schema = t.try_into().unwrap();
-                let mut builder = Relation::table().schema(schema);
-                // Create a table builder with a name
-                if let Some(name) = i.last() {
-                    builder = builder.name(name)
-                }
-                if let Some(s) = s {
-                    builder = builder.size(s.size())
-                }
-                (i, Rc::new(builder.build()))
+            .map(|(identifier, schema_struct, size_struct)| {
+                (identifier.clone(), Rc::new(relation_from_struct(identifier, schema_struct, size_struct)))
             })
             .collect()
     }
@@ -276,7 +267,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             type_::type_::Type::Bytes(type_::type_::Bytes { special_fields }) => DataType::bytes(),
             type_::type_::Type::Struct(type_::type_::Struct {
                 fields,
-                special_fields,
+                ..
             }) => DataType::Struct(data_type::Struct::new(
                 fields
                     .iter()
@@ -285,7 +276,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             )),
             type_::type_::Type::Union(type_::type_::Union {
                 fields,
-                special_fields,
+                ..
             }) => DataType::Union(data_type::Union::new(
                 fields
                     .iter()
@@ -298,12 +289,12 @@ impl<'a> From<&'a type_::Type> for DataType {
             type_::type_::Type::List(type_::type_::List {
                 type_,
                 max_size,
-                special_fields,
+                ..
             }) => DataType::list(type_.get_or_default().into(), 0, *max_size as usize),
             type_::type_::Type::Array(type_::type_::Array {
                 type_,
                 shape,
-                special_fields,
+                ..
             }) => DataType::Array(data_type::Array::new(
                 Rc::new(type_.get_or_default().into()),
                 shape.iter().map(|x| *x as usize).collect(),
@@ -314,7 +305,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 max,
                 possible_values,
                 base,
-                special_fields,
+                ..
             }) => {
                 if possible_values.len() > 0 {
                     let possible_dates: Result<Vec<NaiveDate>> = possible_values
@@ -340,7 +331,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 max,
                 possible_values,
                 base,
-                special_fields,
+                ..
             }) => {
                 if possible_values.len() > 0 {
                     let possible_times: Result<Vec<NaiveTime>> = possible_values
@@ -366,7 +357,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 max,
                 possible_values,
                 base,
-                special_fields,
+                ..
             }) => {
                 if possible_values.len() > 0 {
                     let possible_date_times: Result<Vec<NaiveDateTime>> = possible_values
@@ -391,7 +382,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 min,
                 max,
                 possible_values,
-                special_fields,
+                ..
             }) => {
                 let format_duration = match unit.as_str() {
                     "ns" => Duration::nanoseconds,
@@ -726,15 +717,15 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
 }
 
 fn relation_from_struct<'a>(
-    i: Identifier,
-    t: &'a type_::type_::Struct,
-    s: Option<&'a statistics::statistics::Struct>,
+    identifier: Identifier,
+    schema_struct: &'a type_::type_::Struct,
+    size_struct: Option<&'a statistics::statistics::Struct>,
 ) -> Relation {
-    let schema: Schema = t.try_into().unwrap();
+    let schema: Schema = schema_struct.try_into().unwrap();
     let mut builder = Relation::table().schema(schema);
     // Create a table builder with a name
-    builder = builder.path(i);
-    if let Some(s) = s {
+    builder = builder.path(identifier);
+    if let Some(s) = size_struct {
         builder = builder.size(s.size())
     }
     builder.build()

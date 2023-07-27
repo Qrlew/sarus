@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2023-07-27
+### Changed
+- Updated metadata loading
+
+## [0.2.2] - 2023-07-20
+### Changed
+- Updated fully qualified name in tables and updated Qrlew version
+
 ## [0.2.1] - 2023-07-17
 ### Changed
 - Changed sarus data name

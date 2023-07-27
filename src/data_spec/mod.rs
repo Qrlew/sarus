@@ -229,9 +229,9 @@ fn table_structs<'a>(
 impl<'a> From<&'a type_::Type> for DataType {
     fn from(value: &'a type_::Type) -> Self {
         value.type_.as_ref().map_or(DataType::Any, |t| match t {
-            type_::type_::Type::Null(type_::type_::Null { special_fields }) => DataType::Null,
-            type_::type_::Type::Unit(type_::type_::Unit { special_fields }) => DataType::unit(),
-            type_::type_::Type::Boolean(type_::type_::Boolean { special_fields }) => {
+            type_::type_::Type::Null(type_::type_::Null { .. }) => DataType::Null,
+            type_::type_::Type::Unit(type_::type_::Unit { .. }) => DataType::unit(),
+            type_::type_::Type::Boolean(type_::type_::Boolean { .. }) => {
                 DataType::boolean()
             }
             type_::type_::Type::Integer(type_::type_::Integer {
@@ -733,9 +733,7 @@ fn relation_from_struct<'a>(
     let schema: Schema = t.try_into().unwrap();
     let mut builder = Relation::table().schema(schema);
     // Create a table builder with a name
-    if let Some(name) = i.last() {
-        builder = builder.name(name)
-    }
+    builder = builder.path(i);
     if let Some(s) = s {
         builder = builder.size(s.size())
     }

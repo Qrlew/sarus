@@ -4,8 +4,9 @@
 //! https://www.sqlalchemy.org/
 //! https://www.postgresql.org/docs/14/index.html
 
-use crate::protobuf::{
-    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
+use crate::{
+    protobuf::{dataset, schema, size, statistics, type_},
+    utils::{ParseError, parse_from_str, print_to_string}
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use protobuf;
@@ -1670,6 +1671,124 @@ mod tests {
 
     #[test]
     fn test_function() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn test_statistics() -> Result<()> {
+        let type_str: &str = r#"
+           {
+            "@type": "sarus_data_spec/sarus_data_spec.Statistics",
+            "name": "null",
+            "null": {
+                "name": "Null",
+                "size": "100",
+                "multiplicity": 2.0
+                }
+            }
+        "#;
+        let proto_stats: statistics::Statistics = parse_from_str(type_str).unwrap();
+        println!("{:?}", proto_stats);
+        assert_eq!(proto_stats.null().size(), 100);
+        assert_eq!(proto_stats.null().multiplicity(), 2.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_size() -> Result<()> {
+        let stats_str = r#"
+        {
+        "@type": "sarus_data_spec/sarus_data_spec.Size",
+        "dataset": "2eb049a9a4d564b3963e22eccdf97222",
+        "name": "Transformed_sizes",
+        "properties": {},
+        "statistics": {
+            "name": "Union",
+            "properties": {},
+            "union": {
+            "fields": [
+                {
+                "name": "users",
+                "statistics": {
+                    "name": "Struct",
+                    "properties": {},
+                    "struct": {
+                    "fields": [
+                        {
+                        "name": "id",
+                        "statistics": {
+                            "id": {
+                            "multiplicity": 1.0,
+                            "size": "5009"
+                            },
+                            "name": "Id",
+                            "properties": {}
+                        }
+                        },
+                        {
+                        "name": "age",
+                        "statistics": {
+                            "integer": {
+                            "distribution": {
+                                "integer": {
+                                "max": "9223372036854775807",
+                                "min": "-9223372036854775808",
+                                "points": []
+                                },
+                                "properties": {}
+                            },
+                            "multiplicity": 1.0,
+                            "size": "5009"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                        }
+                        },
+                        {
+                        "name": "is_woman",
+                        "statistics": {
+                            "name": "Boolean",
+                            "optional": {
+                            "multiplicity": 1.0,
+                            "name": "",
+                            "size": "5009",
+                            "statistics": {
+                                "boolean": {
+                                "distribution": {
+                                    "boolean": {
+                                    "points": []
+                                    },
+                                    "properties": {}
+                                },
+                                "multiplicity": 1.0,
+                                "size": "4514"
+                                },
+                                "name": "Boolean",
+                                "properties": {}
+                            }
+                            },
+                            "properties": {}
+                        }
+                        }
+                    ],
+                    "multiplicity": 1.0,
+                    "name": "",
+                    "size": "5009"
+                    }
+                }
+                }
+            ],
+            "multiplicity": 1.0,
+            "name": "",
+            "size": "5009"
+            }
+        },
+        "uuid": "79a52ba301e76480db65fd2c20bdb178"
+        }
+        "#;
+
+        let proto_data_type: size::Size = parse_from_str(stats_str).unwrap();
+        println!("{:?}", proto_data_type);
         Ok(())
     }
 }

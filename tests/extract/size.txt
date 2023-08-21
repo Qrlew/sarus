@@ -1,0 +1,529 @@
+{
+  "@type": "sarus_data_spec/sarus_data_spec.Size",
+  "dataset": "90cc4b68aa2aa543cbf528b549b4a3fe",
+  "name": "Transformed_sizes",
+  "properties": {},
+  "statistics": {
+    "name": "Union",
+    "properties": {},
+    "union": {
+      "fields": [
+        {
+          "name": "extract",
+          "statistics": {
+            "name": "extract",
+            "properties": {},
+            "union": {
+              "fields": [
+                {
+                  "name": "beacon",
+                  "statistics": {
+                    "name": "Struct",
+                    "properties": {},
+                    "struct": {
+                      "fields": [
+                        {
+                          "name": "\u691c\u77e5\u65e5\u6642",
+                          "statistics": {
+                            "datetime": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            },
+                            "name": "Datetime",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "UserId",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            }
+                          }
+                        },
+                        {
+                          "name": "\u6240\u5c5e\u90e8\u7f72",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            }
+                          }
+                        },
+                        {
+                          "name": "\u30d5\u30ed\u30a2\u540d",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            }
+                          }
+                        },
+                        {
+                          "name": "Beacon\u540d",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            }
+                          }
+                        },
+                        {
+                          "name": "RSSI",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "\u30de\u30c3\u30d7\u306eX\u5ea7\u6a19",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "\u30de\u30c3\u30d7\u306eY\u5ea7\u6a19",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "104"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        }
+                      ],
+                      "multiplicity": 1.0,
+                      "name": "",
+                      "size": "104"
+                    }
+                  }
+                },
+                {
+                  "name": "census",
+                  "statistics": {
+                    "name": "Struct",
+                    "properties": {},
+                    "struct": {
+                      "fields": [
+                        {
+                          "name": "age",
+                          "statistics": {
+                            "name": "Integer",
+                            "optional": {
+                              "multiplicity": 1.0,
+                              "name": "",
+                              "size": "197",
+                              "statistics": {
+                                "integer": {
+                                  "distribution": {
+                                    "integer": {
+                                      "max": "9223372036854775807",
+                                      "min": "-9223372036854775808",
+                                      "points": []
+                                    },
+                                    "properties": {}
+                                  },
+                                  "multiplicity": 1.0,
+                                  "size": "192"
+                                },
+                                "name": "Integer",
+                                "properties": {}
+                              }
+                            },
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "workclass",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "fnlwgt",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "education",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "education_num",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "marital_status",
+                          "statistics": {
+                            "name": "Text UTF-8",
+                            "optional": {
+                              "multiplicity": 1.0,
+                              "name": "",
+                              "size": "197",
+                              "statistics": {
+                                "name": "Text",
+                                "properties": {},
+                                "text": {
+                                  "distribution": {
+                                    "integer": {
+                                      "max": "9223372036854775807",
+                                      "min": "-9223372036854775808",
+                                      "points": []
+                                    },
+                                    "properties": {}
+                                  },
+                                  "example": "",
+                                  "multiplicity": 1.0,
+                                  "size": "193"
+                                }
+                              }
+                            },
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "occupation",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "relationship",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "race",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "sex",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "capital_gain",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "capital_loss",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "hours_per_week",
+                          "statistics": {
+                            "integer": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            },
+                            "name": "Integer",
+                            "properties": {}
+                          }
+                        },
+                        {
+                          "name": "native_country",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        },
+                        {
+                          "name": "income",
+                          "statistics": {
+                            "name": "Text",
+                            "properties": {},
+                            "text": {
+                              "distribution": {
+                                "integer": {
+                                  "max": "9223372036854775807",
+                                  "min": "-9223372036854775808",
+                                  "points": []
+                                },
+                                "properties": {}
+                              },
+                              "example": "",
+                              "multiplicity": 1.0,
+                              "size": "197"
+                            }
+                          }
+                        }
+                      ],
+                      "multiplicity": 1.0,
+                      "name": "",
+                      "size": "197"
+                    }
+                  }
+                }
+              ],
+              "multiplicity": 1.0,
+              "name": "",
+              "size": "301"
+            }
+          }
+        }
+      ],
+      "multiplicity": 1.0,
+      "name": "",
+      "size": "301"
+    }
+  },
+  "uuid": "d5bbd2b74e69f96e7c1c50be2e2e5dbf"
+}

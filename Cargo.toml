@@ -1,7 +1,7 @@
 [package]
 authors = ["Nicolas Grislain <ng@sarus.tech>"]
 name = "qrlew-sarus"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 description = "Qrlew - Sarus interfaces"
 documentation = "https://docs.rs/qrlew-sarus"
@@ -15,7 +15,7 @@ keywords = ["sql", "data"]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-qrlew = "0.2"
+qrlew = "0.3"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.10"

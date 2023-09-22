@@ -1,7 +1,7 @@
 [package]
 authors = ["Nicolas Grislain <ng@sarus.tech>"]
 name = "qrlew-sarus"
-version = "0.2.4"
+version = "0.3.0"
 edition = "2021"
 description = "Qrlew - Sarus interfaces"
 documentation = "https://docs.rs/qrlew-sarus"

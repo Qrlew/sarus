@@ -49,12 +49,12 @@ impl error::Error for Error {}
 
 impl From<ParseError> for Error {
     fn from(err: ParseError) -> Self {
-        Error::ParsingError(err.to_string())
+        Error::parsing_error(err)
     }
 }
 impl From<chrono::ParseError> for Error {
     fn from(err: chrono::ParseError) -> Self {
-        Error::ParsingError(err.to_string())
+        Error::parsing_error(err)
     }
 }
 

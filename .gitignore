@@ -16,3 +16,5 @@ Cargo.lock
 # NG: remove generated files
 # src/protobuf/*.rs
 # !src/protobuf/mod.rs
+
+.vscode/

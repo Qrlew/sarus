@@ -8,16 +8,15 @@ use crate::protobuf::{
     dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use protobuf;
 use qrlew::{
     builder::{Ready, With},
     data_type::{self, DataType},
     expr::identifier::Identifier,
-    hierarchy::{Hierarchy, Path},
+    hierarchy::Hierarchy,
     relation::{schema::Schema, Relation, Variant as _},
+    sql,
 };
-use std::str::FromStr;
-use std::{error, fmt, rc::Rc, result};
+use std::{str::FromStr, error, fmt, rc::Rc, result};
 
 // Error management
 
@@ -58,6 +57,12 @@ impl From<chrono::ParseError> for Error {
     }
 }
 
+impl From<sql::Error> for Error {
+    fn from(err: sql::Error) -> Self {
+        Error::ParsingError(err.to_string())
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
 /*
@@ -65,6 +70,10 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
+const PEID_COLUMN: &str = "sarus_protected_entity";
+const WEIGHTS: &str = "sarus_weights";
+const PUBLIC: &str = "sarus_is_public";
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dataset {
@@ -86,6 +95,17 @@ impl Dataset {
         }
     }
 
+    // getters
+    pub fn dataset(&self) -> &dataset::Dataset {
+        &self.dataset
+    }
+    pub fn schema(&self) -> &schema::Schema {
+        &self.schema
+    }
+    pub fn size(&self) -> Option<&size::Size> {
+        self.size.as_ref()
+    }
+
     pub fn parse_from_dataset_schema_size(
         dataset: &str,
         schema: &str,
@@ -98,7 +118,21 @@ impl Dataset {
         ))
     }
 
+    pub fn from_relations(relations: Hierarchy<Rc<Relation>>) -> Self {
+        todo!()
+    }
+
+    pub fn schema_type(&self) -> &type_::Type {
+        self.schema.type_()
+    }
+
+
     /// Return the data part of the schema
+    /// Can it fail?
+    /// data_type returns the first type level containing the data,
+    /// hence skips the protected_entity struct if there is one. 
+    /// what happens when having the schema of the synthetic dataset?
+    /// There are cases where the first struct can be a Union.
     pub fn schema_type_data(&self) -> &type_::Type {
         match self.schema.type_().type_.as_ref() {
             Some(type_::type_::Type::Struct(s)) => s
@@ -112,17 +146,18 @@ impl Dataset {
                     }
                 })
                 .unwrap(),
+            Some(type_::type_::Type::Union(u)) => u.fields()
+            .iter()
+            .find_map(
+                |f| Some(f.type_())
+            ).unwrap(),
             _ => panic!("No data found in the type"),
         }
     }
 
-    /// Return the data part of the schema
-    pub fn size(&self) -> Option<&statistics::Statistics> {
-        self.size.as_ref().map(|s| s.statistics())
-    }
 
     pub fn relations(&self) -> Hierarchy<Rc<Relation>> {
-        table_structs(self.schema_type_data(), self.size())
+        table_structs(self.schema_type_data(), self.size().map(|s| s.statistics()))
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
                 (identifier.clone(), Rc::new(relation_from_struct(identifier, schema_struct, size_struct)))
@@ -163,6 +198,35 @@ impl FromStr for Dataset {
         }
     }
 }
+
+
+impl <'a> From<&'a Hierarchy<Rc<Relation>>> for Dataset {
+        fn from(relations: &Hierarchy<Rc<Relation>>) -> Self {
+            let dataset = dataset::Dataset::new();
+            let schema: schema::Schema = relations.into();
+            let size: Option<size::Size> = relations.try_into().ok();
+            Dataset { dataset, schema, size }
+        }
+    }
+
+impl <'a> From<&'a Hierarchy<Rc<Relation>>> for schema::Schema {
+    fn from(relations: &Hierarchy<Rc<Relation>>) -> Self {
+        let mut schema_proto = schema::Schema::new();
+        let type_:Hierarchy<Schema> = relations
+        .map(|r| r.schema().clone());
+
+        todo!()
+    }
+}
+
+impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for size::Size {
+    type Error = Error; 
+
+    fn try_from(relations: &Hierarchy<Rc<Relation>>) -> Result<Self> {
+        todo!()
+    }
+}
+
 
 /*
 A few utilities to visit types and statistics
@@ -215,6 +279,7 @@ fn table_structs<'a>(
         Vec::new()
     }
 }
+
 
 /// Builds a DataType from a protobuf Type
 impl<'a> From<&'a type_::Type> for DataType {
@@ -411,6 +476,7 @@ impl<'a> From<&'a type_::Type> for DataType {
 }
 
 /// Builds a protobuf Type from a DataType
+// TODO We should implement TryFrom instead of TryInto
 impl TryInto<type_::Type> for DataType {
     type Error = Error;
 
@@ -731,11 +797,39 @@ fn relation_from_struct<'a>(
     builder.build()
 }
 
+
+fn dataset_from_relations<'a>(relations: &Hierarchy<Rc<Relation>>) -> Dataset {
+    let dataset = dataset::Dataset::new();
+    let schema: schema::Schema = relations.into();
+    let size: Option<size::Size> = relations.try_into().ok();
+    Dataset { dataset, schema, size }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use anyhow::Result;
     use std::str::FromStr;
+
+    #[test]
+    fn test_schema() -> Result<()> {
+        let schema = Schema::from([
+            ("Float", DataType::float()),
+            ("N", DataType::integer_min(0)),
+            ("Z", DataType::integer()),
+            ("Text", DataType::text()),
+            ("Date", DataType::date()),
+        ]);
+        println!("schema = {}", schema);
+        let proto_schema: schema::Schema = schema.into();
+
+        let schema_str: &str = r#"{"@type": "sarus_data_spec/sarus_data_spec.Schema", "uuid": "5321f24ffb324a9e958c77ceb09b6cc8", "dataset": "c0d13d2c5d404e2c9930e01f63e18cee", "name": "extract", "type": {"name": "extract", "struct": {"fields": [{"name": "sarus_data", "type": {"name": "Union", "union": {"fields": [{"name": "extract", "type": {"name": "Union", "union": {"fields": [{"name": "beacon", "type": {"name": "Struct", "struct": {"fields": [{"name": "\u691c\u77e5\u65e5\u6642", "type": {"name": "Datetime", "datetime": {"format": "%Y-%m-%d %H:%M:%S", "min": "01-01-01 00:00:00", "max": "9999-12-31 00:00:00"}, "properties": {}}}, {"name": "UserId", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u6240\u5c5e\u90e8\u7f72", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u30d5\u30ed\u30a2\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "Beacon\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "RSSI", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eX\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eY\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}]}, "properties": {}}}, {"name": "census", "type": {"name": "Struct", "struct": {"fields": [{"name": "age", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "workclass", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "fnlwgt", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education_num", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "marital_status", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "occupation", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "relationship", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "race", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "sex", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "capital_gain", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "capital_loss", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "hours_per_week", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "native_country", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "income", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}]}, "properties": {}}}]}, "properties": {"public_fields": "[]"}}}]}, "properties": {"public_fields": "[]"}}}, {"name": "sarus_weights", "type": {"name": "Integer", "integer": {"min": "-9223372036854775808", "max": "9223372036854775807", "base": "INT64", "possible_values": []}, "properties": {}}}, {"name": "sarus_is_public", "type": {"name": "Boolean", "boolean": {}, "properties": {}}}, {"name": "sarus_protected_entity", "type": {"name": "Id", "id": {"base": "STRING", "unique": false}, "properties": {}}}]}, "properties": {}}, "protected": {"label": "data", "paths": [], "properties": {}}, "properties": {"max_max_multiplicity": "1", "foreign_keys": "", "primary_keys": ""}}"#;
+        let proto_data_type: schema::Schema = parse_from_str(schema_str).unwrap();
+        //println!("{:?}", proto_data_type);
+        //let proto_as_json = proto_data_type.prin
+        Ok(())
+    }
 
     #[test]
     fn test_null() -> Result<()> {

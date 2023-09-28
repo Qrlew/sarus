@@ -17,7 +17,7 @@ use qrlew::{
     relation::{schema::Schema, Relation, Variant as _},
 };
 use std::str::FromStr;
-use std::{error, fmt, rc::Rc, result};
+use std::{error, fmt, sync::Arc, result};
 
 // Error management
 
@@ -121,11 +121,11 @@ impl Dataset {
         self.size.as_ref().map(|s| s.statistics())
     }
 
-    pub fn relations(&self) -> Hierarchy<Rc<Relation>> {
+    pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
         table_structs(self.schema_type_data(), self.size())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
-                (identifier.clone(), Rc::new(relation_from_struct(identifier, schema_struct, size_struct)))
+                (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct)))
             })
             .collect()
     }
@@ -271,7 +271,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             }) => DataType::Struct(data_type::Struct::new(
                 fields
                     .iter()
-                    .map(|f| (f.name().to_string(), Rc::new(f.type_().into())))
+                    .map(|f| (f.name().to_string(), Arc::new(f.type_().into())))
                     .collect(),
             )),
             type_::type_::Type::Union(type_::type_::Union {
@@ -280,7 +280,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             }) => DataType::Union(data_type::Union::new(
                 fields
                     .iter()
-                    .map(|f| (f.name().to_string(), Rc::new(f.type_().into())))
+                    .map(|f| (f.name().to_string(), Arc::new(f.type_().into())))
                     .collect(),
             )),
             type_::type_::Type::Optional(type_::type_::Optional { type_, .. }) => {
@@ -296,7 +296,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 shape,
                 ..
             }) => DataType::Array(data_type::Array::new(
-                Rc::new(type_.get_or_default().into()),
+                Arc::new(type_.get_or_default().into()),
                 shape.iter().map(|x| *x as usize).collect(),
             )),
             type_::type_::Type::Date(type_::type_::Date {
@@ -875,7 +875,7 @@ mod tests {
             ("usa".to_string(), 2),
         ];
 
-        let my_rc_vec: Rc<[(String, i64)]> = Rc::from(my_vec);
+        let my_rc_vec: Arc<[(String, i64)]> = Arc::from(my_vec);
         assert!(sarus_type == DataType::Enum(data_type::Enum::new(my_rc_vec)));
         println!("{:?}", sarus_type);
         let new_proto_data_type: type_::Type = sarus_type.try_into()?;
@@ -1397,14 +1397,14 @@ mod tests {
         let ok_results = DataType::Struct(data_type::Struct::new(vec![
             (
                 "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
+                Arc::new(DataType::integer_interval(
                     -9223372036854775808,
                     9223372036854775807,
                 )),
             ),
             (
                 "text".to_string(),
-                Rc::new(DataType::text_values(vec![
+                Arc::new(DataType::text_values(vec![
                     "a".to_string(),
                     "b".to_string(),
                     "c".to_string(),
@@ -1493,14 +1493,14 @@ mod tests {
         let ok_results = DataType::Union(data_type::Union::new(vec![
             (
                 "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
+                Arc::new(DataType::integer_interval(
                     -9223372036854775808,
                     9223372036854775807,
                 )),
             ),
             (
                 "text".to_string(),
-                Rc::new(DataType::text_values(vec![
+                Arc::new(DataType::text_values(vec![
                     "a".to_string(),
                     "b".to_string(),
                     "c".to_string(),
@@ -1653,11 +1653,11 @@ mod tests {
         let sarus_type = DataType::from(&proto_data_type);
         println!("{:?}", sarus_type);
         let ok_results = DataType::Array(data_type::Array::new(
-            Rc::new(DataType::integer_interval(
+            Arc::new(DataType::integer_interval(
                 -9223372036854775808,
                 9223372036854775807,
             )),
-            Rc::new([1]),
+            Arc::new([1]),
         ));
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);

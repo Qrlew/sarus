@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2023-09-28
+### Changed
+- Updated qrlew version and changed `Rc`s to thread safe `Arc`s
+
 ## [0.2.3] - 2023-07-27
 ### Changed
 - Updated metadata loading

@@ -15,8 +15,9 @@ use qrlew::{
     hierarchy::Hierarchy,
     relation::{schema::Schema, Relation, Variant as _},
     sql,
+    data_type::DataTyped,
 };
-use std::{str::FromStr, error, fmt, rc::Rc, result};
+use std::{str::FromStr, error, fmt, rc::Rc, result, convert::{Infallible, TryFrom, TryInto}};
 
 // Error management
 
@@ -63,6 +64,14 @@ impl From<sql::Error> for Error {
     }
 }
 
+impl From<Infallible> for Error {
+    fn from(err: Infallible) -> Self {
+        Error::other(err)
+    }
+}
+// impl From<>
+// FromResidual<std::result::Result<Infallible, data_spec::Error>>` is not implemented for `protobuf::type_::Type
+
 pub type Result<T> = result::Result<T, Error>;
 
 /*
@@ -70,9 +79,9 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
-const PEID_COLUMN: &str = "sarus_protected_entity";
-const WEIGHTS: &str = "sarus_weights";
-const PUBLIC: &str = "sarus_is_public";
+// const PEID_COLUMN: &str = "sarus_protected_entity";
+// const WEIGHTS: &str = "sarus_weights";
+// const PUBLIC: &str = "sarus_is_public";
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,14 +164,15 @@ impl Dataset {
         }
     }
 
-
     pub fn relations(&self) -> Hierarchy<Rc<Relation>> {
-        table_structs(self.schema_type_data(), self.size().map(|s| s.statistics()))
+        let relations_without_prefix: Hierarchy<Rc<Relation>> = table_structs(self.schema_type_data(), self.size().map(|s| s.statistics()))
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
                 (identifier.clone(), Rc::new(relation_from_struct(identifier, schema_struct, size_struct)))
             })
-            .collect()
+            .collect();
+        let schema_name = self.schema().name();
+        relations_without_prefix.prepend(&[schema_name.to_string()])
     }
 }
 
@@ -200,20 +210,24 @@ impl FromStr for Dataset {
 }
 
 
-impl <'a> From<&'a Hierarchy<Rc<Relation>>> for Dataset {
-        fn from(relations: &Hierarchy<Rc<Relation>>) -> Self {
+impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for Dataset {
+    type Error = Error; 
+
+    fn try_from(relations: &Hierarchy<Rc<Relation>>) -> Result<Self> {
             let dataset = dataset::Dataset::new();
-            let schema: schema::Schema = relations.into();
+            let schema: schema::Schema = relations.try_into()?;
             let size: Option<size::Size> = relations.try_into().ok();
-            Dataset { dataset, schema, size }
+            Ok(Dataset { dataset, schema, size })
         }
     }
 
-impl <'a> From<&'a Hierarchy<Rc<Relation>>> for schema::Schema {
-    fn from(relations: &Hierarchy<Rc<Relation>>) -> Self {
-        let mut schema_proto = schema::Schema::new();
-        let type_:Hierarchy<Schema> = relations
-        .map(|r| r.schema().clone());
+impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for schema::Schema {
+    type Error = Error; 
+
+    fn try_from(relations: &Hierarchy<Rc<Relation>>) ->  Result<Self> {
+        // let mut schema_proto = schema::Schema::new();
+        // let type_:Hierarchy<type_::Type> = relations
+        // .map(|r| r.data_type().try_into()?);
 
         todo!()
     }
@@ -472,6 +486,301 @@ impl<'a> From<&'a type_::Type> for DataType {
             }) => DataType::Id(data_type::Id::new(None, *unique)),
             _ => DataType::Any,
         })
+    }
+}
+
+impl <'a> TryFrom<&'a DataType> for type_::Type {
+    type Error = Error;
+
+    fn try_from(data_type: &DataType) -> Result<type_::Type> {
+        let mut proto_type = type_::Type::new();
+        match data_type {
+            DataType::Null => {
+                proto_type.set_name("Null".to_string());
+                proto_type.set_null(type_::type_::Null::new());
+            }
+            DataType::Unit(_) => {
+                proto_type.set_name("Unit".to_string());
+                proto_type.set_unit(type_::type_::Unit::new());
+            }
+            DataType::Boolean(_) => {
+                proto_type.set_name("Boolean".to_string());
+                proto_type.set_boolean(type_::type_::Boolean::new());
+            }
+            DataType::Integer(integer) => {
+                let mut integer_type = type_::type_::Integer::new();
+                if let Some(m) = integer.min() {
+                    integer_type.set_min(*m);
+                }
+                if let Some(m) = integer.max() {
+                    integer_type.set_max(*m);
+                }
+                if integer.all_values() {
+                    integer_type
+                        .set_possible_values(integer.iter().map(|[min, _]| min.clone()).collect());
+                }
+                proto_type.set_name("Integer".to_string());
+                proto_type.set_integer(integer_type);
+            }
+            DataType::Enum(enum_) => {
+                let mut enum_type = type_::type_::Enum::new();
+                let enum_values: Vec<type_::type_::enum_::NameValue> = enum_
+                    .values()
+                    .iter()
+                    .map(|(v, i)| {
+                        let mut enum_val = type_::type_::enum_::NameValue::new();
+                        enum_val.set_name(v.clone());
+                        enum_val.set_value(*i);
+                        enum_val
+                    })
+                    .collect();
+                enum_type.set_name_values(enum_values);
+
+                proto_type.set_name("Enum".to_string());
+                proto_type.set_enum(enum_type);
+            }
+            DataType::Float(float) => {
+                let mut float_type = type_::type_::Float::new();
+                if let Some(m) = float.min() {
+                    float_type.set_min(*m);
+                }
+                if let Some(m) = float.max() {
+                    float_type.set_max(*m);
+                }
+                if float.all_values() {
+                    float_type
+                        .set_possible_values(float.iter().map(|[min, _]| min.clone()).collect());
+                }
+                proto_type.set_name("Float".to_string());
+                proto_type.set_float(float_type);
+            }
+            DataType::Text(text) => {
+                let mut text_type = type_::type_::Text::new();
+                if text.all_values() {
+                    text_type
+                        .set_possible_values(text.iter().map(|[min, _]| min.clone()).collect());
+                }
+                //text_type.set_encoding("UTF8".to_string());
+
+                proto_type.set_name("Text".to_string());
+                proto_type.set_text(text_type);
+            }
+            DataType::Bytes(_) => {
+                proto_type.set_name("Bytes".to_string());
+                proto_type.set_bytes(type_::type_::Bytes::new());
+            }
+            DataType::Struct(struct_type_) => {
+                let mut struct_type = type_::type_::Struct::new();
+                let mut proto_fields: Vec<type_::type_::struct_::Field> = vec![];
+                for (name, dtype) in struct_type_.fields() {
+                    let mut data_field = type_::type_::struct_::Field::new();
+                    data_field.set_name(name.to_string());
+                    data_field.set_type(dtype.as_ref().clone().try_into()?);
+                    proto_fields.push(data_field)
+                }
+                struct_type.set_fields(proto_fields);
+
+                proto_type.set_name("Struct".to_string());
+                proto_type.set_struct(struct_type);
+            }
+            DataType::Union(union) => {
+                let mut union_type = type_::type_::Union::new();
+                let mut proto_fields: Vec<type_::type_::union::Field> = vec![];
+                for (name, dtype) in union.fields() {
+                    let mut data_field = type_::type_::union::Field::new();
+                    data_field.set_name(name.to_string());
+                    data_field.set_type(dtype.as_ref().clone().try_into()?);
+                    proto_fields.push(data_field)
+                }
+                union_type.set_fields(proto_fields);
+
+                proto_type.set_name("Union".to_string());
+                proto_type.set_union(union_type);
+            }
+            DataType::Optional(optional) => {
+                let mut optional_type = type_::type_::Optional::new();
+                let data_type: type_::Type = optional.data_type().clone().try_into()?;
+                optional_type.set_type(data_type);
+
+                proto_type.set_name("Optional".to_string());
+                proto_type.set_optional(optional_type);
+            }
+            DataType::List(list_) => {
+                let mut list_type = type_::type_::List::new();
+                let data_type: type_::Type = list_.data_type().clone().try_into()?;
+                list_type.set_type(data_type);
+                if let Some(number) = list_.size().max() {
+                    list_type.set_max_size(*number);
+                }
+
+                proto_type.set_name("List".to_string());
+                proto_type.set_list(list_type);
+            }
+            DataType::Set(_set) => {
+                return Err(Error::Other(
+                    "Cannot convert DataType::Set to protobuf::_type::Type".to_string(),
+                ))
+            }
+            DataType::Array(array) => {
+                let mut array_type = type_::type_::Array::new();
+                let data_type: type_::Type = array.data_type().clone().try_into()?;
+                array_type.set_type(data_type);
+                let mut shape: Vec<i64> = vec![];
+                for s in array.shape() {
+                    match s.clone().try_into() {
+                        Ok(conv_s) => shape.push(conv_s),
+                        Err(_) => {
+                            return Err(Error::Other(
+                                "Cannot convert shape from usize to i64".to_string(),
+                            ))
+                        }
+                    }
+                }
+                array_type.set_shape(shape);
+
+                proto_type.set_name("Array".to_string());
+                proto_type.set_array(array_type);
+            }
+            DataType::Date(date) => {
+                let mut date_type = type_::type_::Date::new();
+                let format = "%Y-%m-%d";
+                date_type.set_format(format.to_string());
+                if let Some(m) = date.min() {
+                    date_type.set_min(m.format(format).to_string());
+                }
+                if let Some(m) = date.max() {
+                    date_type.set_max(m.format(format).to_string());
+                }
+                if date.all_values() {
+                    date_type.set_possible_values(
+                        date.iter()
+                            .map(|[min, _]| min.format(format).to_string())
+                            .collect(),
+                    );
+                }
+                proto_type.set_name("Date".to_string());
+                proto_type.set_date(date_type);
+            }
+            DataType::Time(time) => {
+                let mut time_type = type_::type_::Time::new();
+                let format = "%H:%M:%S.%9f";
+                time_type.set_format(format.to_string());
+                time_type.set_base(type_::type_::time::Base::INT64_NS);
+                if let Some(m) = time.min() {
+                    time_type.set_min(m.format(format).to_string());
+                }
+                if let Some(m) = time.max() {
+                    time_type.set_max(m.format(format).to_string());
+                }
+                if time.all_values() {
+                    time_type.set_possible_values(
+                        time.iter()
+                            .map(|[min, _]| min.format(format).to_string())
+                            .collect(),
+                    );
+                }
+                proto_type.set_name("Time".to_string());
+                proto_type.set_time(time_type);
+            }
+            DataType::DateTime(date_time) => {
+                let mut date_time_type = type_::type_::Datetime::new();
+                let format = "%Y-%m-%d %H:%M:%S.%9f";
+                date_time_type.set_format(format.to_string());
+                if let Some(m) = date_time.min() {
+                    date_time_type.set_min(m.format(format).to_string());
+                }
+                if let Some(m) = date_time.max() {
+                    date_time_type.set_max(m.format(format).to_string());
+                }
+                if date_time.all_values() {
+                    date_time_type.set_possible_values(
+                        date_time
+                            .iter()
+                            .map(|[min, _]| min.format(format).to_string())
+                            .collect(),
+                    );
+                }
+                proto_type.set_name("Datetime".to_string());
+                proto_type.set_datetime(date_time_type);
+            }
+            DataType::Duration(duration) => {
+                let mut duration_type = type_::type_::Duration::new();
+
+                let mut vec_of_durations: Vec<Duration> =
+                    duration.iter().map(|[min, _]| min.clone()).collect();
+                if let Some(m) = duration.min() {
+                    vec_of_durations.push(m.clone());
+                }
+                if let Some(m) = duration.max() {
+                    vec_of_durations.push(m.clone())
+                }
+
+                let (duration_unit, conversion) = match vec_of_durations.iter().max() {
+                    Some(m) => {
+                        if m.num_nanoseconds().is_some() {
+                            (
+                                "ns",
+                                Box::new(|dur: &Duration| dur.num_nanoseconds().unwrap())
+                                as Box<dyn Fn(&Duration) -> i64>,
+                            )
+                        } else if m.num_microseconds().is_some() {
+                            (
+                                "us",
+                                Box::new(|dur: &Duration| dur.num_microseconds().unwrap())
+                                as Box<dyn Fn(&Duration) -> i64>,
+                            )
+                        } else {
+                            (
+                                "ms",
+                                Box::new(|dur: &Duration| dur.num_milliseconds())
+                                as Box<dyn Fn(&Duration) -> i64>,
+                            )
+                        }
+                    },
+                    None => {
+                        return Err(Error::Other(
+                            "Cannot infert Duration unit if min, max or possible values are not provided".to_string()
+                        ))
+                    }
+                };
+
+                duration_type.set_unit(duration_unit.to_string());
+                if let Some(m) = duration.min() {
+                    duration_type.set_min(conversion(m))
+                }
+
+                if let Some(m) = duration.max() {
+                    duration_type.set_max(conversion(m))
+                }
+
+                if duration.all_values() {
+                    duration_type.set_possible_values(
+                        duration.iter().map(|[min, _]| conversion(min)).collect(),
+                    );
+                }
+
+                proto_type.set_name("Duration".to_string());
+                proto_type.set_duration(duration_type);
+            }
+            DataType::Id(id) => {
+                let mut id_type = type_::type_::Id::new();
+                id_type.set_unique(id.unique());
+
+                proto_type.set_name("Id".to_string());
+                proto_type.set_id(type_::type_::Id::new());
+            }
+            DataType::Function(_function) => {
+                return Err(Error::Other(
+                    "Cannot convert DataType::Function to protobuf::_type::Type".to_string(),
+                ))
+            }
+            DataType::Any => {
+                return Err(Error::Other(
+                    "Cannot convert DataType::Any to protobuf::_type::Type".to_string(),
+                ))
+            }
+        };
+        Ok(proto_type)
     }
 }
 
@@ -800,9 +1109,64 @@ fn relation_from_struct<'a>(
 
 fn dataset_from_relations<'a>(relations: &Hierarchy<Rc<Relation>>) -> Dataset {
     let dataset = dataset::Dataset::new();
-    let schema: schema::Schema = relations.into();
-    let size: Option<size::Size> = relations.try_into().ok();
-    Dataset { dataset, schema, size }
+
+    // let vec_id_
+    // let schema: schema::Schema = relations.try_into()?;
+    // let size: Option<size::Size> = relations.try_into().ok();
+    // Dataset { dataset, schema, size }
+    todo!()
+}
+
+#[derive(Debug, PartialEq)]
+enum Code {
+    Hello,
+    Bye,
+}
+
+impl TryFrom<u8> for Code {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self> {
+        match value {
+            0 => Ok(Self::Hello),
+            1 => Ok(Self::Bye),
+            _ => Err(Error::Other(String::from("ERROR"))),
+        }
+    }
+}
+
+// pub fn build_nested_objects(data: &Vec<(Vec<&str>, &str)>) -> HashMap<String, TreeNode> {
+//     let mut root = TreeNode::default();
+
+//     for (path, obj) in data {
+//         let mut current_node = &mut root;
+//         for key in path {
+//             current_node = current_node.children.entry(key.to_string()).or_default();
+//         }
+
+//         current_node.value = Some(obj.to_string());
+//     }
+
+//     fn build_nested_objects_helper(node: &TreeNode) -> TreeNode {
+//         let mut nested_obj = TreeNode::default();
+//         for (key, child_node) in &node.children {
+//             nested_obj.children.insert(key.clone(), build_nested_objects_helper(child_node));
+//         }
+//         if let Some(value) = &node.value {
+//             nested_obj.value = Some(value.clone());
+//         }
+//         nested_obj
+//     }
+
+//     let mut result = HashMap::new();
+//     for (key, child_node) in &root.children {
+//         result.insert(key.clone(), build_nested_objects_helper(child_node));
+//     }
+
+fn union_from_hierarchy(types: &Hierarchy<type_::Type>) -> type_::Type {
+    types.iter().fold(type_::type_::Union::new(), |acc, (path, table_struct)| {
+        if path.len() >
+    })
 }
 
 
@@ -810,22 +1174,158 @@ fn dataset_from_relations<'a>(relations: &Hierarchy<Rc<Relation>>) -> Dataset {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use std::str::FromStr;
+    use itertools::Itertools;
+
+    #[test]
+    fn test_nested_hierarchy() -> Result<()> {
+
+
+        let s1 = DataType::Struct(data_type::Struct::new(vec![
+            (
+                "integer_possible_values".to_string(),
+                Rc::new(DataType::integer_interval(
+                    -9223372036854775808,
+                    9223372036854775807,
+                )),
+            ),
+            (
+                "text".to_string(),
+                Rc::new(DataType::text_values(vec![
+                    "a".to_string(),
+                    "b".to_string(),
+                    "c".to_string(),
+                ])),
+            ),
+        ]));
+
+        let s1_proto: type_::Type = s1.try_into()?;
+
+        let ht = Hierarchy::from([
+            (vec!["a", "b", "c"], s1_proto.clone()),
+            (vec!["a", "e",], s1_proto.clone()),
+        ]);
+
+        // TODO: What happens with empty hierarchy?
+        if let Some((path, _)) = ht.iter().next() {
+            if &path.len( ) == &1_usize && &ht.len()==&1_usize{
+                // We have to build a CSV-like schema.
+                todo!()
+            } else {
+                let prefix = &path[0];
+                let filtered_types = ht.filter(&[prefix.clone()]);
+                if &filtered_types.len() != &ht.len() {
+                    //If there are multiple prefixes should we raise en error ?
+                    todo!()
+                }
+                // By default it has't a protected structure
+                let schema_proto_type = union_from_hierarchy(&filtered_types);
+
+            }
+        } else {
+            // raise an error?
+            print!("NO RELATIONS")
+        }
+
+
+        // let path_prefixes: Vec<String> = ht.keys().map(|p|p[0].clone()).collect::<Vec<String>>().unique();
+        // print!("{:?}",path_prefixes);
+        // if ht.len() == 0 {
+        //     let init = type_::type_::Type;   
+        // } elsif {
+        // };
+        //print!("{:?}", print_to_string(&s1_proto));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_for_structs() -> Result<()> {
+        let ok_results = DataType::Struct(data_type::Struct::new(vec![
+            (
+                "integer_possible_values".to_string(),
+                Rc::new(DataType::integer_interval(
+                    -9223372036854775808,
+                    9223372036854775807,
+                )),
+            ),
+            (
+                "text".to_string(),
+                Rc::new(DataType::text_values(vec![
+                    "a".to_string(),
+                    "b".to_string(),
+                    "c".to_string(),
+                ])),
+            ),
+        ]));
+
+        let proto: type_::Type = ok_results.try_into()?;
+
+        let hh = Hierarchy::from([
+                (vec!["a", "b", "c"], proto.clone()),
+                (vec!["a", "e",], proto.clone()),
+        ]);
+
+        let f1 = hh.filter(&["a".to_string()]);
+        let f2 = hh.filter(&["c".to_string()]);
+        let f3 = hh.filter(&["b".to_string()]);
+
+        println!("F1: \n{}", f1);
+        println!("F2: \n{}", f2);
+        println!("F3: \n{}", f3);
+        
+        // let tt = hh.
+        // iter()
+        // .fold(type_::type_::Struct::new() |acc, num| )
+
+        // let first = hh.iter().next();
+        
+        
+        // let aa = hh.hierarchy();
+        // let frst = hh.get(0);
+        // //let proto = hh.iter().fold(init, f)
+
+        // print!("{:?}", hh);
+        Ok(())
+    }
+    
+    #[test]
+    fn test_random() -> Result<()> {
+        let c: Code = 0_u8.try_into()?;
+
+        let vv: Vec<u8> = vec![0_u8, 1_u8, 2_u8];
+        //let vc: Vec<result::Result<Code, Error>> = vv.into_iter().map(|a|a.try_into()).collect();
+        //let vc = vv.into_iter().map(|a|a.try_into()).collect::<Result<Vec<Code>,_>>()?;
+        //let vc: Code = 2_u8.try_into()?;
+        let vc = vv.into_iter().map(|a|a.try_into()).collect::<Result<Vec<Code>,_>>()?;
+        println!("{:?}", vc);
+    
+        assert_eq!(c, Code::Hello);
+        
+        // assert_eq!(u8::from(c), 0);
+        
+        // let b: u8 = Code::Bye.into();
+        
+        // assert_eq!(b, 1);
+        Ok(())
+    }
 
     #[test]
     fn test_schema() -> Result<()> {
-        let schema = Schema::from([
+        let schema_ = Schema::from([
             ("Float", DataType::float()),
-            ("N", DataType::integer_min(0)),
-            ("Z", DataType::integer()),
-            ("Text", DataType::text()),
-            ("Date", DataType::date()),
+            // ("N", DataType::integer_min(0)),
+            // ("Z", DataType::integer()),
+            // ("Text", DataType::text()),
+            // ("Date", DataType::date()),
         ]);
-        println!("schema = {}", schema);
-        let proto_schema: schema::Schema = schema.into();
-
-        let schema_str: &str = r#"{"@type": "sarus_data_spec/sarus_data_spec.Schema", "uuid": "5321f24ffb324a9e958c77ceb09b6cc8", "dataset": "c0d13d2c5d404e2c9930e01f63e18cee", "name": "extract", "type": {"name": "extract", "struct": {"fields": [{"name": "sarus_data", "type": {"name": "Union", "union": {"fields": [{"name": "extract", "type": {"name": "Union", "union": {"fields": [{"name": "beacon", "type": {"name": "Struct", "struct": {"fields": [{"name": "\u691c\u77e5\u65e5\u6642", "type": {"name": "Datetime", "datetime": {"format": "%Y-%m-%d %H:%M:%S", "min": "01-01-01 00:00:00", "max": "9999-12-31 00:00:00"}, "properties": {}}}, {"name": "UserId", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u6240\u5c5e\u90e8\u7f72", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u30d5\u30ed\u30a2\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "Beacon\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "RSSI", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eX\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eY\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}]}, "properties": {}}}, {"name": "census", "type": {"name": "Struct", "struct": {"fields": [{"name": "age", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "workclass", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "fnlwgt", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education_num", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "marital_status", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "occupation", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "relationship", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "race", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "sex", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "capital_gain", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "capital_loss", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "hours_per_week", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "native_country", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "income", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}]}, "properties": {}}}]}, "properties": {"public_fields": "[]"}}}]}, "properties": {"public_fields": "[]"}}}, {"name": "sarus_weights", "type": {"name": "Integer", "integer": {"min": "-9223372036854775808", "max": "9223372036854775807", "base": "INT64", "possible_values": []}, "properties": {}}}, {"name": "sarus_is_public", "type": {"name": "Boolean", "boolean": {}, "properties": {}}}, {"name": "sarus_protected_entity", "type": {"name": "Id", "id": {"base": "STRING", "unique": false}, "properties": {}}}]}, "properties": {}}, "protected": {"label": "data", "paths": [], "properties": {}}, "properties": {"max_max_multiplicity": "1", "foreign_keys": "", "primary_keys": ""}}"#;
-        let proto_data_type: schema::Schema = parse_from_str(schema_str).unwrap();
+        // println!("schema = {}", schema_);
+        // let vec_of_schemas: Vec<Schema> = vec![schema_.clone(), schema_.clone()]
+        // let vec_of_types: Vec<type_::Type> = vec_of_schemas.iter().map(|s|type_::Type::try_from(s.data_type())?).collect();
+        // //let proto_type: type_::Type = schema_.data_type().try_into()?;
+        // println!("{:?}", proto_type);
+        
+        // let schema_str: &str = r#"{"@type": "sarus_data_spec/sarus_data_spec.Schema", "uuid": "5321f24ffb324a9e958c77ceb09b6cc8", "dataset": "c0d13d2c5d404e2c9930e01f63e18cee", "name": "extract", "type": {"name": "extract", "struct": {"fields": [{"name": "sarus_data", "type": {"name": "Union", "union": {"fields": [{"name": "extract", "type": {"name": "Union", "union": {"fields": [{"name": "beacon", "type": {"name": "Struct", "struct": {"fields": [{"name": "\u691c\u77e5\u65e5\u6642", "type": {"name": "Datetime", "datetime": {"format": "%Y-%m-%d %H:%M:%S", "min": "01-01-01 00:00:00", "max": "9999-12-31 00:00:00"}, "properties": {}}}, {"name": "UserId", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u6240\u5c5e\u90e8\u7f72", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u30d5\u30ed\u30a2\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "Beacon\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "RSSI", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eX\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eY\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}]}, "properties": {}}}, {"name": "census", "type": {"name": "Struct", "struct": {"fields": [{"name": "age", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "workclass", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "fnlwgt", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education_num", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "marital_status", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "occupation", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "relationship", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "race", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "sex", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "capital_gain", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "capital_loss", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "hours_per_week", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "native_country", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "income", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}]}, "properties": {}}}]}, "properties": {"public_fields": "[]"}}}]}, "properties": {"public_fields": "[]"}}}, {"name": "sarus_weights", "type": {"name": "Integer", "integer": {"min": "-9223372036854775808", "max": "9223372036854775807", "base": "INT64", "possible_values": []}, "properties": {}}}, {"name": "sarus_is_public", "type": {"name": "Boolean", "boolean": {}, "properties": {}}}, {"name": "sarus_protected_entity", "type": {"name": "Id", "id": {"base": "STRING", "unique": false}, "properties": {}}}]}, "properties": {}}, "protected": {"label": "data", "paths": [], "properties": {}}, "properties": {"max_max_multiplicity": "1", "foreign_keys": "", "primary_keys": ""}}"#;
+        // let proto_data_type: schema::Schema = parse_from_str(schema_str).unwrap();
         //println!("{:?}", proto_data_type);
         //let proto_as_json = proto_data_type.prin
         Ok(())

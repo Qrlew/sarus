@@ -236,7 +236,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
             (SARUS_DATA.to_string(), data_type),
             (PEID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
             (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
-            (WEIGHTS.to_string(), (&DataType::float_interval(0.0, f64::MAX)).try_into()?),
+            (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
         ];
         for (name, dtype) in first_level_fields.into_iter() {
             let mut data_field = type_::type_::struct_::Field::new();
@@ -1263,7 +1263,13 @@ mod tests {
 
         let ds = Dataset::try_from(&relations)?;
         let ds_schema_proto = ds.schema();
+        let ds_size_proto = ds.size();
         assert!(ds_schema_proto.name() == "a");
+        
+        if let Some(proto) = ds_size_proto {
+            println!("STATS: \n{}\n", print_to_string(proto).unwrap());
+        };
+
         let schema_str = r#"
         {
             "name": "a",

@@ -14,10 +14,9 @@ use qrlew::{
     expr::identifier::Identifier,
     hierarchy::{Hierarchy},
     relation::{schema::Schema, Relation, Variant as _},
-    sql,
     data_type::DataTyped,
 };
-use std::{str::FromStr, error, fmt, sync::Arc, result, convert::{Infallible, TryFrom, TryInto}, collections::HashSet};
+use std::{str::FromStr, error, fmt, sync::Arc, result, convert::{TryFrom, TryInto}, collections::HashSet};
 
 // Error management
 

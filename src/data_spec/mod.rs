@@ -58,20 +58,6 @@ impl From<chrono::ParseError> for Error {
     }
 }
 
-impl From<sql::Error> for Error {
-    fn from(err: sql::Error) -> Self {
-        Error::ParsingError(err.to_string())
-    }
-}
-
-impl From<Infallible> for Error {
-    fn from(err: Infallible) -> Self {
-        Error::other(err)
-    }
-}
-// impl From<>
-// FromResidual<std::result::Result<Infallible, data_spec::Error>>` is not implemented for `protobuf::type_::Type
-
 pub type Result<T> = result::Result<T, Error>;
 
 /*
@@ -226,7 +212,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
         }
     }
 
-// maybe is it better to do it at ones?
+/// Try to build a Schema protobuf from relations
 impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
     type Error = Error; 
 

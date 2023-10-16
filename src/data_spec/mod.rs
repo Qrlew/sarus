@@ -12,12 +12,12 @@ use qrlew::{
     builder::{Ready, With},
     data_type::{self, DataType},
     expr::identifier::Identifier,
-    hierarchy::Hierarchy,
+    hierarchy::{Hierarchy},
     relation::{schema::Schema, Relation, Variant as _},
     sql,
     data_type::DataTyped,
 };
-use std::{str::FromStr, error, fmt, rc::Rc, result, convert::{Infallible, TryFrom, TryInto}};
+use std::{str::FromStr, error, fmt, sync::Arc, result, convert::{Infallible, TryFrom, TryInto}, collections::HashSet};
 
 // Error management
 
@@ -79,9 +79,9 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
-// const PEID_COLUMN: &str = "sarus_protected_entity";
-// const WEIGHTS: &str = "sarus_weights";
-// const PUBLIC: &str = "sarus_is_public";
+const PEID_COLUMN: &str = "sarus_protected_entity";
+const WEIGHTS: &str = "sarus_weights";
+const PUBLIC: &str = "sarus_is_public";
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,11 +108,17 @@ impl Dataset {
     pub fn dataset(&self) -> &dataset::Dataset {
         &self.dataset
     }
+
     pub fn schema(&self) -> &schema::Schema {
         &self.schema
     }
+
     pub fn size(&self) -> Option<&size::Size> {
         self.size.as_ref()
+    }
+
+    pub fn size_statistics(&self) -> Option<&statistics::Statistics> {
+        self.size.as_ref().map(|s| s.statistics())
     }
 
     pub fn parse_from_dataset_schema_size(
@@ -127,48 +133,35 @@ impl Dataset {
         ))
     }
 
-    pub fn from_relations(relations: Hierarchy<Rc<Relation>>) -> Self {
-        todo!()
-    }
-
+    /// Returns the schema type
     pub fn schema_type(&self) -> &type_::Type {
         self.schema.type_()
     }
 
-
-    /// Return the data part of the schema
-    /// Can it fail?
-    /// data_type returns the first type level containing the data,
-    /// hence skips the protected_entity struct if there is one. 
-    /// what happens when having the schema of the synthetic dataset?
-    /// There are cases where the first struct can be a Union.
+    /// Returns the SARUS_DATA type part of the schema type
     pub fn schema_type_data(&self) -> &type_::Type {
         match self.schema.type_().type_.as_ref() {
-            Some(type_::type_::Type::Struct(s)) => s
-                .fields()
-                .iter()
-                .find_map(|f| {
-                    if f.name() == SARUS_DATA {
-                        Some(f.type_())
-                    } else {
-                        Some(self.schema.type_())
-                    }
-                })
-                .unwrap(),
-            Some(type_::type_::Type::Union(u)) => u.fields()
-            .iter()
-            .find_map(
-                |f| Some(f.type_())
-            ).unwrap(),
-            _ => panic!("No data found in the type"),
+            Some(type_::type_::Type::Struct(s)) => {
+                if let Some(data_type) = s
+                    .fields()
+                    .iter()
+                    .find_map(|f| {
+                        if f.name() == SARUS_DATA {
+                            Some(f.type_())
+                        } else { None }
+                    }) {
+                    data_type
+                } else { self.schema_type() }
+            }
+            _ => self.schema_type()
         }
     }
 
-    pub fn relations(&self) -> Hierarchy<Rc<Relation>> {
-        let relations_without_prefix: Hierarchy<Rc<Relation>> = table_structs(self.schema_type_data(), self.size().map(|s| s.statistics()))
+    pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
+        let relations_without_prefix: Hierarchy<Arc<Relation>> = table_structs(self.schema_type_data(), self.size_statistics())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
-                (identifier.clone(), Rc::new(relation_from_struct(identifier, schema_struct, size_struct)))
+                (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct)))
             })
             .collect();
         let schema_name = self.schema().name();
@@ -209,36 +202,160 @@ impl FromStr for Dataset {
     }
 }
 
-
-impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for Dataset {
+/// Create a dataset from Relations
+impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
     type Error = Error; 
 
-    fn try_from(relations: &Hierarchy<Rc<Relation>>) -> Result<Self> {
-            let dataset = dataset::Dataset::new();
-            let schema: schema::Schema = relations.try_into()?;
-            let size: Option<size::Size> = relations.try_into().ok();
-            Ok(Dataset { dataset, schema, size })
+    fn try_from(relations: &Hierarchy<Arc<Relation>>) -> Result<Self> {
+        let dataset = dataset::Dataset::new();
+        let path_prefixes_set = extract_paths_with_prefix(relations, &vec![]);
+        if path_prefixes_set.len() > 1 {
+            return Err(Error::Other("Relations have paths with not a unique head. Could not transform Relations into multiple Datasets.".to_string()))
+        }
+        let schema: schema::Schema = relations.try_into()?;
+        let schema_name_path = vec![schema.name().to_string()];
+        let size = match statistics_from_relations(relations, &schema_name_path) {
+            Some(size_statistics) => {
+                let mut size_proto = size::Size::new();
+                size_proto.set_statistics(size_statistics);
+                Some(size_proto)
+            },
+            None => None,
+        };
+        Ok(Dataset { dataset, schema, size })
         }
     }
 
-impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for schema::Schema {
+// maybe is it better to do it at ones?
+impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
     type Error = Error; 
 
-    fn try_from(relations: &Hierarchy<Rc<Relation>>) ->  Result<Self> {
-        // let mut schema_proto = schema::Schema::new();
-        // let type_:Hierarchy<type_::Type> = relations
-        // .map(|r| r.data_type().try_into()?);
+    fn try_from(relations: &Hierarchy<Arc<Relation>>) ->  Result<Self> {
+        let mut schema = schema::Schema::new();
+        
+        let common_paths: HashSet<Vec<String>> = extract_paths_with_prefix(relations, &vec![]);
+        let schema_name_path= common_paths
+        .iter()
+        .next()
+        .ok_or(
+            Error::Other("Could not transform Relations with empty Path into Schema.".to_string())
+        )?;
+        schema.set_name(schema_name_path[0].clone());
+        
+        let mut schema_type = type_::Type::new();
+        let mut first_level_struct = type_::type_::Struct::new();
+        let mut first_level_proto_fields: Vec<type_::type_::struct_::Field> = vec![];
 
-        todo!()
+        let data_type = type_from_relations(relations,schema_name_path)?;
+        let first_level_fields: Vec<(String, type_::Type)> = vec![
+            (SARUS_DATA.to_string(), data_type),
+            (PEID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
+            (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
+            (WEIGHTS.to_string(), (&DataType::float_interval(0.0, f64::MAX)).try_into()?),
+        ];
+        for (name, dtype) in first_level_fields.into_iter() {
+            let mut data_field = type_::type_::struct_::Field::new();
+            data_field.set_name(name.to_string());
+            data_field.set_type(dtype);
+            first_level_proto_fields.push(data_field)
+        }
+        first_level_struct.set_fields(first_level_proto_fields);
+
+        schema_type.set_name("Struct".to_string());
+        schema_type.set_struct(first_level_struct);
+        schema.set_type(schema_type);
+        Ok(schema)
     }
 }
 
-impl <'a> TryFrom<&'a Hierarchy<Rc<Relation>>> for size::Size {
-    type Error = Error; 
+// Utility fuunctions
 
-    fn try_from(relations: &Hierarchy<Rc<Relation>>) -> Result<Self> {
-        todo!()
+fn is_prefix_of(left: &[String], right: &[String]) -> bool {
+    left.iter().zip(right.iter()).all(|(pr, pa)| pr == pa)
+}
+
+/// Returns a HashSet containing vectors of strings. Each vector represents
+/// a unique path in the hierarchy that has the specified prefix.
+fn extract_paths_with_prefix(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String>) -> HashSet<Vec<String>>{
+    relations
+    .iter()
+    .fold(HashSet::new(), |mut set, (path, _)|{
+        if let Some(path_element) = path.get(prefix.len()) {
+            if is_prefix_of(prefix, path) {
+                set.insert(prefix.into_iter().chain([path_element].into_iter()).cloned().collect());
+            }
+        }
+        set
+    } )
+}
+
+/// Create a Type protobuf from relations
+fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String>) -> Result<type_::Type> {
+    let common_paths: HashSet<Vec<String>> = extract_paths_with_prefix(relations, prefix);
+    if common_paths.is_empty() {
+        if let Some(rel) = relations.get(prefix) {
+            let schema_type = &rel.schema().data_type();
+            let proto_type: type_::Type = schema_type.try_into()?;
+            Ok(proto_type)
+        } else {
+            return Err(Error::Other(
+                "Coult not convert relations into data type".to_string(),
+            ))
+        }
+    } else {
+        // create Unions
+        let mut proto_type = type_::Type::new();
+        let mut union_type = type_::type_::Union::new();
+        let mut proto_fields: Vec<type_::type_::union::Field> = vec![];
+
+
+        for path in common_paths.iter() {
+            let field_name = &path[path.len()-1];
+            let mut data_field = type_::type_::union::Field::new();
+            data_field.set_name(field_name.clone());
+            let dtype = type_from_relations(relations, path)?;
+            data_field.set_type(dtype);
+            proto_fields.push(data_field)
+        }
+
+        union_type.set_fields(proto_fields);
+        proto_type.set_name("Union".to_string());
+        proto_type.set_union(union_type);
+        Ok(proto_type)
     }
+}
+
+/// Create a Statistics protobuf from relations
+fn statistics_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String>) -> Option<statistics::Statistics> {
+    let mut stat_proto = statistics::Statistics::new();
+    let common_paths: HashSet<Vec<String>> = extract_paths_with_prefix(relations, prefix);
+    if common_paths.is_empty() {
+        if let Some(rel) = relations.get(prefix) {
+            let mut struct_proto = statistics::statistics::Struct::new();
+            if let Some(rel_size) = rel.size().max() {
+                struct_proto.set_size(*rel_size);
+                stat_proto.set_struct(struct_proto)
+            };
+        } else {
+            return None
+        };
+    } else {
+        let mut union_proto = statistics::statistics::Union::new();
+        let mut proto_fields: Vec<statistics::statistics::union::Field> = vec![];
+        for path in common_paths.iter() {
+            if let Some(field_statistics) = statistics_from_relations(relations, path) {
+                let field_name = &path[path.len()-1];
+                let mut data_field = statistics::statistics::union::Field::new();
+                data_field.set_name(field_name.clone());
+                data_field.set_statistics(field_statistics);
+                proto_fields.push(data_field)
+            }
+        }
+        union_proto.set_fields(proto_fields);
+        stat_proto.set_name("Union".to_string());
+        stat_proto.set_union(union_proto);
+    }
+    Some(stat_proto)
 }
 
 
@@ -350,7 +467,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             }) => DataType::Struct(data_type::Struct::new(
                 fields
                     .iter()
-                    .map(|f| (f.name().to_string(), Rc::new(f.type_().into())))
+                    .map(|f| (f.name().to_string(), Arc::new(f.type_().into())))
                     .collect(),
             )),
             type_::type_::Type::Union(type_::type_::Union {
@@ -359,7 +476,7 @@ impl<'a> From<&'a type_::Type> for DataType {
             }) => DataType::Union(data_type::Union::new(
                 fields
                     .iter()
-                    .map(|f| (f.name().to_string(), Rc::new(f.type_().into())))
+                    .map(|f| (f.name().to_string(), Arc::new(f.type_().into())))
                     .collect(),
             )),
             type_::type_::Type::Optional(type_::type_::Optional { type_, .. }) => {
@@ -375,7 +492,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 shape,
                 ..
             }) => DataType::Array(data_type::Array::new(
-                Rc::new(type_.get_or_default().into()),
+                Arc::new(type_.get_or_default().into()),
                 shape.iter().map(|x| *x as usize).collect(),
             )),
             type_::type_::Type::Date(type_::type_::Date {
@@ -489,6 +606,7 @@ impl<'a> From<&'a type_::Type> for DataType {
     }
 }
 
+/// Builds a Protobuf Type out of a Sarus DataType
 impl <'a> TryFrom<&'a DataType> for type_::Type {
     type Error = Error;
 
@@ -575,7 +693,7 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
                 for (name, dtype) in struct_type_.fields() {
                     let mut data_field = type_::type_::struct_::Field::new();
                     data_field.set_name(name.to_string());
-                    data_field.set_type(dtype.as_ref().clone().try_into()?);
+                    data_field.set_type(dtype.as_ref().try_into()?);
                     proto_fields.push(data_field)
                 }
                 struct_type.set_fields(proto_fields);
@@ -589,7 +707,7 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
                 for (name, dtype) in union.fields() {
                     let mut data_field = type_::type_::union::Field::new();
                     data_field.set_name(name.to_string());
-                    data_field.set_type(dtype.as_ref().clone().try_into()?);
+                    data_field.set_type(dtype.as_ref().try_into()?);
                     proto_fields.push(data_field)
                 }
                 union_type.set_fields(proto_fields);
@@ -599,7 +717,7 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
             }
             DataType::Optional(optional) => {
                 let mut optional_type = type_::type_::Optional::new();
-                let data_type: type_::Type = optional.data_type().clone().try_into()?;
+                let data_type: type_::Type = optional.data_type().try_into()?;
                 optional_type.set_type(data_type);
 
                 proto_type.set_name("Optional".to_string());
@@ -607,7 +725,7 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
             }
             DataType::List(list_) => {
                 let mut list_type = type_::type_::List::new();
-                let data_type: type_::Type = list_.data_type().clone().try_into()?;
+                let data_type: type_::Type = list_.data_type().try_into()?;
                 list_type.set_type(data_type);
                 if let Some(number) = list_.size().max() {
                     list_type.set_max_size(*number);
@@ -623,304 +741,7 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
             }
             DataType::Array(array) => {
                 let mut array_type = type_::type_::Array::new();
-                let data_type: type_::Type = array.data_type().clone().try_into()?;
-                array_type.set_type(data_type);
-                let mut shape: Vec<i64> = vec![];
-                for s in array.shape() {
-                    match s.clone().try_into() {
-                        Ok(conv_s) => shape.push(conv_s),
-                        Err(_) => {
-                            return Err(Error::Other(
-                                "Cannot convert shape from usize to i64".to_string(),
-                            ))
-                        }
-                    }
-                }
-                array_type.set_shape(shape);
-
-                proto_type.set_name("Array".to_string());
-                proto_type.set_array(array_type);
-            }
-            DataType::Date(date) => {
-                let mut date_type = type_::type_::Date::new();
-                let format = "%Y-%m-%d";
-                date_type.set_format(format.to_string());
-                if let Some(m) = date.min() {
-                    date_type.set_min(m.format(format).to_string());
-                }
-                if let Some(m) = date.max() {
-                    date_type.set_max(m.format(format).to_string());
-                }
-                if date.all_values() {
-                    date_type.set_possible_values(
-                        date.iter()
-                            .map(|[min, _]| min.format(format).to_string())
-                            .collect(),
-                    );
-                }
-                proto_type.set_name("Date".to_string());
-                proto_type.set_date(date_type);
-            }
-            DataType::Time(time) => {
-                let mut time_type = type_::type_::Time::new();
-                let format = "%H:%M:%S.%9f";
-                time_type.set_format(format.to_string());
-                time_type.set_base(type_::type_::time::Base::INT64_NS);
-                if let Some(m) = time.min() {
-                    time_type.set_min(m.format(format).to_string());
-                }
-                if let Some(m) = time.max() {
-                    time_type.set_max(m.format(format).to_string());
-                }
-                if time.all_values() {
-                    time_type.set_possible_values(
-                        time.iter()
-                            .map(|[min, _]| min.format(format).to_string())
-                            .collect(),
-                    );
-                }
-                proto_type.set_name("Time".to_string());
-                proto_type.set_time(time_type);
-            }
-            DataType::DateTime(date_time) => {
-                let mut date_time_type = type_::type_::Datetime::new();
-                let format = "%Y-%m-%d %H:%M:%S.%9f";
-                date_time_type.set_format(format.to_string());
-                if let Some(m) = date_time.min() {
-                    date_time_type.set_min(m.format(format).to_string());
-                }
-                if let Some(m) = date_time.max() {
-                    date_time_type.set_max(m.format(format).to_string());
-                }
-                if date_time.all_values() {
-                    date_time_type.set_possible_values(
-                        date_time
-                            .iter()
-                            .map(|[min, _]| min.format(format).to_string())
-                            .collect(),
-                    );
-                }
-                proto_type.set_name("Datetime".to_string());
-                proto_type.set_datetime(date_time_type);
-            }
-            DataType::Duration(duration) => {
-                let mut duration_type = type_::type_::Duration::new();
-
-                let mut vec_of_durations: Vec<Duration> =
-                    duration.iter().map(|[min, _]| min.clone()).collect();
-                if let Some(m) = duration.min() {
-                    vec_of_durations.push(m.clone());
-                }
-                if let Some(m) = duration.max() {
-                    vec_of_durations.push(m.clone())
-                }
-
-                let (duration_unit, conversion) = match vec_of_durations.iter().max() {
-                    Some(m) => {
-                        if m.num_nanoseconds().is_some() {
-                            (
-                                "ns",
-                                Box::new(|dur: &Duration| dur.num_nanoseconds().unwrap())
-                                as Box<dyn Fn(&Duration) -> i64>,
-                            )
-                        } else if m.num_microseconds().is_some() {
-                            (
-                                "us",
-                                Box::new(|dur: &Duration| dur.num_microseconds().unwrap())
-                                as Box<dyn Fn(&Duration) -> i64>,
-                            )
-                        } else {
-                            (
-                                "ms",
-                                Box::new(|dur: &Duration| dur.num_milliseconds())
-                                as Box<dyn Fn(&Duration) -> i64>,
-                            )
-                        }
-                    },
-                    None => {
-                        return Err(Error::Other(
-                            "Cannot infert Duration unit if min, max or possible values are not provided".to_string()
-                        ))
-                    }
-                };
-
-                duration_type.set_unit(duration_unit.to_string());
-                if let Some(m) = duration.min() {
-                    duration_type.set_min(conversion(m))
-                }
-
-                if let Some(m) = duration.max() {
-                    duration_type.set_max(conversion(m))
-                }
-
-                if duration.all_values() {
-                    duration_type.set_possible_values(
-                        duration.iter().map(|[min, _]| conversion(min)).collect(),
-                    );
-                }
-
-                proto_type.set_name("Duration".to_string());
-                proto_type.set_duration(duration_type);
-            }
-            DataType::Id(id) => {
-                let mut id_type = type_::type_::Id::new();
-                id_type.set_unique(id.unique());
-
-                proto_type.set_name("Id".to_string());
-                proto_type.set_id(type_::type_::Id::new());
-            }
-            DataType::Function(_function) => {
-                return Err(Error::Other(
-                    "Cannot convert DataType::Function to protobuf::_type::Type".to_string(),
-                ))
-            }
-            DataType::Any => {
-                return Err(Error::Other(
-                    "Cannot convert DataType::Any to protobuf::_type::Type".to_string(),
-                ))
-            }
-        };
-        Ok(proto_type)
-    }
-}
-
-/// Builds a protobuf Type from a DataType
-// TODO We should implement TryFrom instead of TryInto
-impl TryInto<type_::Type> for DataType {
-    type Error = Error;
-
-    fn try_into(self) -> Result<type_::Type> {
-        let mut proto_type = type_::Type::new();
-        match &self {
-            DataType::Null => {
-                proto_type.set_name("Null".to_string());
-                proto_type.set_null(type_::type_::Null::new());
-            }
-            DataType::Unit(_) => {
-                proto_type.set_name("Unit".to_string());
-                proto_type.set_unit(type_::type_::Unit::new());
-            }
-            DataType::Boolean(_) => {
-                proto_type.set_name("Boolean".to_string());
-                proto_type.set_boolean(type_::type_::Boolean::new());
-            }
-            DataType::Integer(integer) => {
-                let mut integer_type = type_::type_::Integer::new();
-                if let Some(m) = integer.min() {
-                    integer_type.set_min(*m);
-                }
-                if let Some(m) = integer.max() {
-                    integer_type.set_max(*m);
-                }
-                if integer.all_values() {
-                    integer_type
-                        .set_possible_values(integer.iter().map(|[min, _]| min.clone()).collect());
-                }
-                proto_type.set_name("Integer".to_string());
-                proto_type.set_integer(integer_type);
-            }
-            DataType::Enum(enum_) => {
-                let mut enum_type = type_::type_::Enum::new();
-                let enum_values: Vec<type_::type_::enum_::NameValue> = enum_
-                    .values()
-                    .iter()
-                    .map(|(v, i)| {
-                        let mut enum_val = type_::type_::enum_::NameValue::new();
-                        enum_val.set_name(v.clone());
-                        enum_val.set_value(*i);
-                        enum_val
-                    })
-                    .collect();
-                enum_type.set_name_values(enum_values);
-
-                proto_type.set_name("Enum".to_string());
-                proto_type.set_enum(enum_type);
-            }
-            DataType::Float(float) => {
-                let mut float_type = type_::type_::Float::new();
-                if let Some(m) = float.min() {
-                    float_type.set_min(*m);
-                }
-                if let Some(m) = float.max() {
-                    float_type.set_max(*m);
-                }
-                if float.all_values() {
-                    float_type
-                        .set_possible_values(float.iter().map(|[min, _]| min.clone()).collect());
-                }
-                proto_type.set_name("Float".to_string());
-                proto_type.set_float(float_type);
-            }
-            DataType::Text(text) => {
-                let mut text_type = type_::type_::Text::new();
-                if text.all_values() {
-                    text_type
-                        .set_possible_values(text.iter().map(|[min, _]| min.clone()).collect());
-                }
-                //text_type.set_encoding("UTF8".to_string());
-
-                proto_type.set_name("Text".to_string());
-                proto_type.set_text(text_type);
-            }
-            DataType::Bytes(_) => {
-                proto_type.set_name("Bytes".to_string());
-                proto_type.set_bytes(type_::type_::Bytes::new());
-            }
-            DataType::Struct(struct_type_) => {
-                let mut struct_type = type_::type_::Struct::new();
-                let mut proto_fields: Vec<type_::type_::struct_::Field> = vec![];
-                for (name, dtype) in struct_type_.fields() {
-                    let mut data_field = type_::type_::struct_::Field::new();
-                    data_field.set_name(name.to_string());
-                    data_field.set_type(dtype.as_ref().clone().try_into()?);
-                    proto_fields.push(data_field)
-                }
-                struct_type.set_fields(proto_fields);
-
-                proto_type.set_name("Struct".to_string());
-                proto_type.set_struct(struct_type);
-            }
-            DataType::Union(union) => {
-                let mut union_type = type_::type_::Union::new();
-                let mut proto_fields: Vec<type_::type_::union::Field> = vec![];
-                for (name, dtype) in union.fields() {
-                    let mut data_field = type_::type_::union::Field::new();
-                    data_field.set_name(name.to_string());
-                    data_field.set_type(dtype.as_ref().clone().try_into()?);
-                    proto_fields.push(data_field)
-                }
-                union_type.set_fields(proto_fields);
-
-                proto_type.set_name("Union".to_string());
-                proto_type.set_union(union_type);
-            }
-            DataType::Optional(optional) => {
-                let mut optional_type = type_::type_::Optional::new();
-                let data_type: type_::Type = optional.data_type().clone().try_into()?;
-                optional_type.set_type(data_type);
-
-                proto_type.set_name("Optional".to_string());
-                proto_type.set_optional(optional_type);
-            }
-            DataType::List(list_) => {
-                let mut list_type = type_::type_::List::new();
-                let data_type: type_::Type = list_.data_type().clone().try_into()?;
-                list_type.set_type(data_type);
-                if let Some(number) = list_.size().max() {
-                    list_type.set_max_size(*number);
-                }
-
-                proto_type.set_name("List".to_string());
-                proto_type.set_list(list_type);
-            }
-            DataType::Set(_set) => {
-                return Err(Error::Other(
-                    "Cannot convert DataType::Set to protobuf::_type::Type".to_string(),
-                ))
-            }
-            DataType::Array(array) => {
-                let mut array_type = type_::type_::Array::new();
-                let data_type: type_::Type = array.data_type().clone().try_into()?;
+                let data_type: type_::Type = array.data_type().try_into()?;
                 array_type.set_type(data_type);
                 let mut shape: Vec<i64> = vec![];
                 for s in array.shape() {
@@ -1107,227 +928,499 @@ fn relation_from_struct<'a>(
 }
 
 
-fn dataset_from_relations<'a>(relations: &Hierarchy<Rc<Relation>>) -> Dataset {
-    let dataset = dataset::Dataset::new();
-
-    // let vec_id_
-    // let schema: schema::Schema = relations.try_into()?;
-    // let size: Option<size::Size> = relations.try_into().ok();
-    // Dataset { dataset, schema, size }
-    todo!()
-}
-
-#[derive(Debug, PartialEq)]
-enum Code {
-    Hello,
-    Bye,
-}
-
-impl TryFrom<u8> for Code {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self> {
-        match value {
-            0 => Ok(Self::Hello),
-            1 => Ok(Self::Bye),
-            _ => Err(Error::Other(String::from("ERROR"))),
-        }
-    }
-}
-
-// pub fn build_nested_objects(data: &Vec<(Vec<&str>, &str)>) -> HashMap<String, TreeNode> {
-//     let mut root = TreeNode::default();
-
-//     for (path, obj) in data {
-//         let mut current_node = &mut root;
-//         for key in path {
-//             current_node = current_node.children.entry(key.to_string()).or_default();
-//         }
-
-//         current_node.value = Some(obj.to_string());
-//     }
-
-//     fn build_nested_objects_helper(node: &TreeNode) -> TreeNode {
-//         let mut nested_obj = TreeNode::default();
-//         for (key, child_node) in &node.children {
-//             nested_obj.children.insert(key.clone(), build_nested_objects_helper(child_node));
-//         }
-//         if let Some(value) = &node.value {
-//             nested_obj.value = Some(value.clone());
-//         }
-//         nested_obj
-//     }
-
-//     let mut result = HashMap::new();
-//     for (key, child_node) in &root.children {
-//         result.insert(key.clone(), build_nested_objects_helper(child_node));
-//     }
-
-fn union_from_hierarchy(types: &Hierarchy<type_::Type>) -> type_::Type {
-    types.iter().fold(type_::type_::Union::new(), |acc, (path, table_struct)| {
-        if path.len() >
-    })
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use anyhow::Result;
-    use itertools::Itertools;
+    use qrlew::{relation::Table};
+
+    fn relation() -> Relation {
+        let schema: Schema = vec![
+            ("a", DataType::integer_interval(-1, 1)),
+            ("b", DataType::float_interval(-2., 2.)),
+        ]
+        .into_iter()
+        .collect();
+        let tab: Relation = Table::builder().schema(schema).size(200).build();
+        tab
+    }
 
     #[test]
-    fn test_nested_hierarchy() -> Result<()> {
-
-
-        let s1 = DataType::Struct(data_type::Struct::new(vec![
-            (
-                "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
-                    -9223372036854775808,
-                    9223372036854775807,
-                )),
-            ),
-            (
-                "text".to_string(),
-                Rc::new(DataType::text_values(vec![
-                    "a".to_string(),
-                    "b".to_string(),
-                    "c".to_string(),
-                ])),
-            ),
-        ]));
-
-        let s1_proto: type_::Type = s1.try_into()?;
-
-        let ht = Hierarchy::from([
-            (vec!["a", "b", "c"], s1_proto.clone()),
-            (vec!["a", "e",], s1_proto.clone()),
+    fn test_relations_empty_path() -> Result<()> {
+        let empty_path: Vec<String> = vec![];
+        let relations = Hierarchy::from([
+            (empty_path, Arc::new(relation())),
         ]);
+        assert!(Dataset::try_from(&relations).is_err());
+        Ok(())
+    }
 
-        // TODO: What happens with empty hierarchy?
-        if let Some((path, _)) = ht.iter().next() {
-            if &path.len( ) == &1_usize && &ht.len()==&1_usize{
-                // We have to build a CSV-like schema.
-                todo!()
-            } else {
-                let prefix = &path[0];
-                let filtered_types = ht.filter(&[prefix.clone()]);
-                if &filtered_types.len() != &ht.len() {
-                    //If there are multiple prefixes should we raise en error ?
-                    todo!()
+    #[test]
+    fn test_relations_multiple_path_head() -> Result<()> {
+        let relations = Hierarchy::from([
+            (vec!["a"], Arc::new(relation())),
+            (vec!["e"], Arc::new(relation()))
+        ]);
+        assert!(Dataset::try_from(&relations).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_relations_single_entity_path() -> Result<()> {
+        let tab_as_relation = relation();
+        let rel_schema = tab_as_relation.schema();
+        let schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
+        
+        let relations = Hierarchy::from([
+            (vec!["my_table"], Arc::new(tab_as_relation.clone())),
+        ]);
+        let ds = Dataset::try_from(&relations)?;
+
+        let ds_schema_proto = ds.schema();
+        let ds_size_proto = ds.size();
+        
+        if let Some(proto) = ds_size_proto {
+            assert!(proto.statistics().struct_().size() == 200);
+        };
+        assert!(ds_schema_proto.name() == "my_table");
+        assert!(ds.schema_type_data() == &schema_type);
+        let schema_str = r#"
+            {
+                "name": "my_table",
+                "type": {
+                    "name": "Struct",
+                    "struct": {
+                        "fields": [{
+                            "name": "sarus_data",
+                            "type": {
+                                "name": "Struct",
+                                "struct": {
+                                    "fields": [{
+                                        "name": "a",
+                                        "type": {
+                                            "name": "Integer",
+                                            "integer": {
+                                                "min": "-1",
+                                                "max": "1"
+                                            }
+                                        }
+                                    }, {
+                                        "name": "b",
+                                        "type": {
+                                            "name": "Float",
+                                            "float": {
+                                                "min": -2.0,
+                                                "max": 2.0
+                                            }
+                                        }
+                                    }]
+                                }
+                            }
+                        }, {
+                            "name": "sarus_protected_entity",
+                            "type": {
+                                "name": "Optional",
+                                "optional": {
+                                    "type": {
+                                        "name": "Id",
+                                        "id": {}
+                                    }
+                                }
+                            }
+                        }, {
+                            "name": "sarus_is_public",
+                            "type": {
+                                "name": "Boolean",
+                                "boolean": {}
+                            }
+                        }, {
+                            "name": "sarus_weights",
+                            "type": {
+                                "name": "Float",
+                                "float": {
+                                    "max": 1.7976931348623157e308
+                                }
+                            }
+                        }]
+                    }
                 }
-                // By default it has't a protected structure
-                let schema_proto_type = union_from_hierarchy(&filtered_types);
-
             }
-        } else {
-            // raise an error?
-            print!("NO RELATIONS")
-        }
+        "#;
+        let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        assert!(&parsed_schema==ds_schema_proto);
+        Ok(())
+    } 
 
+    #[test]
+    fn test_relations_unions_case_1() -> Result<()> {
+        let tab_as_relation = relation();
+        let relations = Hierarchy::from([
+            (vec!["a", "b"], Arc::new(tab_as_relation.clone())),
+        ]);
+        
+        let ds = Dataset::try_from(&relations)?;
 
-        // let path_prefixes: Vec<String> = ht.keys().map(|p|p[0].clone()).collect::<Vec<String>>().unique();
-        // print!("{:?}",path_prefixes);
-        // if ht.len() == 0 {
-        //     let init = type_::type_::Type;   
-        // } elsif {
-        // };
-        //print!("{:?}", print_to_string(&s1_proto));
+        let ds_schema_proto = ds.schema();
+        let ds_size_proto = ds.size();
 
+        if let Some(proto) = ds_size_proto {
+            println!("STATS: \n{}\n", print_to_string(proto).unwrap());
+            let tab_size = proto.statistics().union().fields().as_ref()[0].statistics().struct_().size();
+            assert!(tab_size == 200);
+        };
+        assert!(ds_schema_proto.name() == "a");
+        let schema_str = r#"
+        {
+            "name": "a",
+            "type": {
+              "name": "Struct",
+              "struct": {
+                "fields": [{
+                  "name": "sarus_data",
+                  "type": {
+                    "name": "Union",
+                    "union": {
+                      "fields": [{
+                        "name": "b",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }, {
+                  "name": "sarus_protected_entity",
+                  "type": {
+                    "name": "Optional",
+                    "optional": {
+                      "type": {
+                        "name": "Id",
+                        "id": {}
+                      }
+                    }
+                  }
+                }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
+                  "name": "sarus_weights",
+                  "type": {
+                    "name": "Float",
+                    "float": {
+                      "max": 1.7976931348623157e308
+                    }
+                  }
+                }]
+              }
+            }
+          }
+        "#;
+        let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        assert!(&parsed_schema==ds_schema_proto);
         Ok(())
     }
 
     #[test]
-    fn test_for_structs() -> Result<()> {
-        let ok_results = DataType::Struct(data_type::Struct::new(vec![
-            (
-                "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
-                    -9223372036854775808,
-                    9223372036854775807,
-                )),
-            ),
-            (
-                "text".to_string(),
-                Rc::new(DataType::text_values(vec![
-                    "a".to_string(),
-                    "b".to_string(),
-                    "c".to_string(),
-                ])),
-            ),
-        ]));
+    fn test_relations_unions_case_2() -> Result<()> {
+        let tab_as_relation = relation();
 
-        let proto: type_::Type = ok_results.try_into()?;
-
-        let hh = Hierarchy::from([
-                (vec!["a", "b", "c"], proto.clone()),
-                (vec!["a", "e",], proto.clone()),
+        let relations = Hierarchy::from([
+            (vec!["a", "b"], Arc::new(tab_as_relation.clone())),
+            (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
 
-        let f1 = hh.filter(&["a".to_string()]);
-        let f2 = hh.filter(&["c".to_string()]);
-        let f3 = hh.filter(&["b".to_string()]);
+        let ds = Dataset::try_from(&relations)?;
+        let ds_schema_proto = ds.schema();
+        let ds_size_proto = ds.size();
 
-        println!("F1: \n{}", f1);
-        println!("F2: \n{}", f2);
-        println!("F3: \n{}", f3);
-        
-        // let tt = hh.
-        // iter()
-        // .fold(type_::type_::Struct::new() |acc, num| )
-
-        // let first = hh.iter().next();
-        
-        
-        // let aa = hh.hierarchy();
-        // let frst = hh.get(0);
-        // //let proto = hh.iter().fold(init, f)
-
-        // print!("{:?}", hh);
+        if let Some(proto) = ds_size_proto {
+            println!("STATS: \n{}\n", print_to_string(proto).unwrap());
+            assert!(proto.statistics().union().fields().as_ref()[0].statistics().struct_().size() == 200);
+            assert!(proto.statistics().union().fields().as_ref()[1].statistics().struct_().size() == 200);
+        };
+        assert!(ds_schema_proto.name() == "a");
+        let schema_str = r#"
+        {
+            "name": "a",
+            "type": {
+              "name": "Struct",
+              "struct": {
+                "fields": [{
+                  "name": "sarus_data",
+                  "type": {
+                    "name": "Union",
+                    "union": {
+                      "fields": [{
+                        "name": "c",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }, {
+                        "name": "b",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }, {
+                  "name": "sarus_protected_entity",
+                  "type": {
+                    "name": "Optional",
+                    "optional": {
+                      "type": {
+                        "name": "Id",
+                        "id": {}
+                      }
+                    }
+                  }
+                }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
+                  "name": "sarus_weights",
+                  "type": {
+                    "name": "Float",
+                    "float": {
+                      "max": 1.7976931348623157e308
+                    }
+                  }
+                }]
+              }
+            }
+          }
+        "#;
+        let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        let parsed_type: DataType = parsed_schema.type_().try_into().unwrap();
+        let ds_type: DataType = ds_schema_proto.type_().try_into().unwrap();
+        assert!(ds_type==parsed_type);
         Ok(())
     }
-    
-    #[test]
-    fn test_random() -> Result<()> {
-        let c: Code = 0_u8.try_into()?;
-
-        let vv: Vec<u8> = vec![0_u8, 1_u8, 2_u8];
-        //let vc: Vec<result::Result<Code, Error>> = vv.into_iter().map(|a|a.try_into()).collect();
-        //let vc = vv.into_iter().map(|a|a.try_into()).collect::<Result<Vec<Code>,_>>()?;
-        //let vc: Code = 2_u8.try_into()?;
-        let vc = vv.into_iter().map(|a|a.try_into()).collect::<Result<Vec<Code>,_>>()?;
-        println!("{:?}", vc);
-    
-        assert_eq!(c, Code::Hello);
-        
-        // assert_eq!(u8::from(c), 0);
-        
-        // let b: u8 = Code::Bye.into();
-        
-        // assert_eq!(b, 1);
-        Ok(())
-    }
 
     #[test]
-    fn test_schema() -> Result<()> {
-        let schema_ = Schema::from([
-            ("Float", DataType::float()),
-            // ("N", DataType::integer_min(0)),
-            // ("Z", DataType::integer()),
-            // ("Text", DataType::text()),
-            // ("Date", DataType::date()),
+    fn test_relations_unions_case_3() -> Result<()> {
+        let tab_as_relation = relation();
+
+        let relations = Hierarchy::from([
+            (vec!["a", "b", "d"], Arc::new(tab_as_relation.clone())),
+            (vec!["a", "b", "e", "f"], Arc::new(tab_as_relation.clone())),
+            (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
-        // println!("schema = {}", schema_);
-        // let vec_of_schemas: Vec<Schema> = vec![schema_.clone(), schema_.clone()]
-        // let vec_of_types: Vec<type_::Type> = vec_of_schemas.iter().map(|s|type_::Type::try_from(s.data_type())?).collect();
-        // //let proto_type: type_::Type = schema_.data_type().try_into()?;
-        // println!("{:?}", proto_type);
-        
-        // let schema_str: &str = r#"{"@type": "sarus_data_spec/sarus_data_spec.Schema", "uuid": "5321f24ffb324a9e958c77ceb09b6cc8", "dataset": "c0d13d2c5d404e2c9930e01f63e18cee", "name": "extract", "type": {"name": "extract", "struct": {"fields": [{"name": "sarus_data", "type": {"name": "Union", "union": {"fields": [{"name": "extract", "type": {"name": "Union", "union": {"fields": [{"name": "beacon", "type": {"name": "Struct", "struct": {"fields": [{"name": "\u691c\u77e5\u65e5\u6642", "type": {"name": "Datetime", "datetime": {"format": "%Y-%m-%d %H:%M:%S", "min": "01-01-01 00:00:00", "max": "9999-12-31 00:00:00"}, "properties": {}}}, {"name": "UserId", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u6240\u5c5e\u90e8\u7f72", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "\u30d5\u30ed\u30a2\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "Beacon\u540d", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "RSSI", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eX\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "\u30de\u30c3\u30d7\u306eY\u5ea7\u6a19", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}]}, "properties": {}}}, {"name": "census", "type": {"name": "Struct", "struct": {"fields": [{"name": "age", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "workclass", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "fnlwgt", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "education_num", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "marital_status", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "occupation", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "relationship", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "race", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "sex", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "capital_gain", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "capital_loss", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "hours_per_week", "type": {"name": "Integer", "integer": {"base": "INT64", "min": "-9223372036854775808", "max": "9223372036854775807", "possible_values": []}, "properties": {}}}, {"name": "native_country", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}, {"name": "income", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}, "properties": {}}}]}, "properties": {}}}]}, "properties": {"public_fields": "[]"}}}]}, "properties": {"public_fields": "[]"}}}, {"name": "sarus_weights", "type": {"name": "Integer", "integer": {"min": "-9223372036854775808", "max": "9223372036854775807", "base": "INT64", "possible_values": []}, "properties": {}}}, {"name": "sarus_is_public", "type": {"name": "Boolean", "boolean": {}, "properties": {}}}, {"name": "sarus_protected_entity", "type": {"name": "Id", "id": {"base": "STRING", "unique": false}, "properties": {}}}]}, "properties": {}}, "protected": {"label": "data", "paths": [], "properties": {}}, "properties": {"max_max_multiplicity": "1", "foreign_keys": "", "primary_keys": ""}}"#;
-        // let proto_data_type: schema::Schema = parse_from_str(schema_str).unwrap();
-        //println!("{:?}", proto_data_type);
-        //let proto_as_json = proto_data_type.prin
+
+        let ds = Dataset::try_from(&relations)?;
+        let ds_schema_proto = ds.schema();
+        assert!(ds_schema_proto.name() == "a");
+        let schema_str = r#"
+        {
+            "name": "a",
+            "type": {
+              "name": "Struct",
+              "struct": {
+                "fields": [{
+                  "name": "sarus_data",
+                  "type": {
+                    "name": "Union",
+                    "union": {
+                      "fields": [{
+                        "name": "c",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }, {
+                        "name": "b",
+                        "type": {
+                          "name": "Union",
+                          "union": {
+                            "fields": [{
+                              "name": "d",
+                              "type": {
+                                "name": "Struct",
+                                "struct": {
+                                  "fields": [{
+                                    "name": "a",
+                                    "type": {
+                                      "name": "Integer",
+                                      "integer": {
+                                        "min": "-1",
+                                        "max": "1"
+                                      }
+                                    }
+                                  }, {
+                                    "name": "b",
+                                    "type": {
+                                      "name": "Float",
+                                      "float": {
+                                        "min": -2.0,
+                                        "max": 2.0
+                                      }
+                                    }
+                                  }]
+                                }
+                              }
+                            }, {
+                              "name": "e",
+                              "type": {
+                                "name": "Union",
+                                "union": {
+                                  "fields": [{
+                                    "name": "f",
+                                    "type": {
+                                      "name": "Struct",
+                                      "struct": {
+                                        "fields": [{
+                                          "name": "a",
+                                          "type": {
+                                            "name": "Integer",
+                                            "integer": {
+                                              "min": "-1",
+                                              "max": "1"
+                                            }
+                                          }
+                                        }, {
+                                          "name": "b",
+                                          "type": {
+                                            "name": "Float",
+                                            "float": {
+                                              "min": -2.0,
+                                              "max": 2.0
+                                            }
+                                          }
+                                        }]
+                                      }
+                                    }
+                                  }]
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }, {
+                  "name": "sarus_protected_entity",
+                  "type": {
+                    "name": "Optional",
+                    "optional": {
+                      "type": {
+                        "name": "Id",
+                        "id": {}
+                      }
+                    }
+                  }
+                }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
+                  "name": "sarus_weights",
+                  "type": {
+                    "name": "Float",
+                    "float": {
+                      "max": 1.7976931348623157e308
+                    }
+                  }
+                }]
+              }
+            }
+          }
+        "#;
+        let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        let parsed_type: DataType = parsed_schema.type_().try_into().unwrap();
+        let ds_type: DataType = ds_schema_proto.type_().try_into().unwrap();
+        assert!(ds_type==parsed_type);
         Ok(())
     }
 
@@ -1344,7 +1437,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::Null);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
 
         Ok(())
@@ -1363,7 +1456,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::Unit(data_type::Unit));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
         Ok(())
     }
@@ -1381,7 +1474,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::Boolean(data_type::Boolean::default()));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
         Ok(())
     }
@@ -1410,7 +1503,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::integer_values(vec![0, 1, 5, 99, 100]));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
 
         let type_str: &str = r#"
@@ -1429,7 +1522,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::integer_interval(0, 100));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
         Ok(())
     }
@@ -1469,10 +1562,10 @@ mod tests {
             ("usa".to_string(), 2),
         ];
 
-        let my_rc_vec: Rc<[(String, i64)]> = Rc::from(my_vec);
+        let my_rc_vec: Arc<[(String, i64)]> = Arc::from(my_vec);
         assert!(sarus_type == DataType::Enum(data_type::Enum::new(my_rc_vec)));
         println!("{:?}", sarus_type);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.enum_().name_values() == new_proto_data_type.enum_().name_values());
         Ok(())
     }
@@ -1502,7 +1595,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.float().min() == 0.0);
         assert!(new_proto_data_type.float().max() == 5.0);
         assert!(new_proto_data_type.float().possible_values() == &[0., 1., 5.]);
@@ -1523,7 +1616,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::float_interval(0., 1.));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.float().min() == 0.0);
         assert!(new_proto_data_type.float().max() == 1.0);
         assert!(new_proto_data_type.float().possible_values() == &[]);
@@ -1553,7 +1646,7 @@ mod tests {
             sarus_type
                 == DataType::text_values(vec!["a".to_string(), "b".to_string(), "c".to_string()])
         );
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert_eq!(new_proto_data_type.name(), "Text".to_string());
         assert_eq!(new_proto_data_type.text().encoding(), "".to_string());
         assert_eq!(
@@ -1575,7 +1668,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::text());
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert_eq!(new_proto_data_type.name(), "Text".to_string());
         assert_eq!(new_proto_data_type.text().encoding(), "".to_string());
         assert!(new_proto_data_type.text().possible_values().is_empty());
@@ -1596,7 +1689,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::Bytes(data_type::Bytes));
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
         Ok(())
     }
@@ -1624,7 +1717,7 @@ mod tests {
             NaiveDate::parse_from_str("2100-01-01", "%Y-%m-%d")?,
         );
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.date().min() == "2000-01-01");
         assert!(new_proto_data_type.date().max() == "2100-01-01");
         assert!(new_proto_data_type.date().possible_values().is_empty());
@@ -1655,7 +1748,7 @@ mod tests {
             NaiveDate::parse_from_str("2100-01-01", "%Y-%m-%d")?,
         ]);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.date().min() == "2000-01-01");
         assert!(new_proto_data_type.date().max() == "2100-01-01");
         assert!(new_proto_data_type.date().possible_values().len() == 3);
@@ -1687,7 +1780,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.time().min() == "12:12:01.000000000");
         assert!(new_proto_data_type.time().max() == "12:12:03.000000000");
         assert!(format!("{:?}", new_proto_data_type.time().base()) == "INT64_NS".to_string());
@@ -1721,7 +1814,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.time().min() == "12:12:01.000000000");
         assert!(new_proto_data_type.time().max() == "12:12:03.000000000");
         assert!(new_proto_data_type.time().possible_values().len() == 3);
@@ -1753,7 +1846,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.datetime().min() == "2023-01-01 00:00:00.000000000");
         assert!(new_proto_data_type.datetime().max() == "2023-12-31 00:00:00.000000000");
         assert!(new_proto_data_type.datetime().possible_values().is_empty());
@@ -1787,7 +1880,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.datetime().min() == "2023-01-01 00:10:00.000000000");
         assert!(new_proto_data_type.datetime().max() == "2023-12-01 11:00:00.000000000");
         assert!(new_proto_data_type.datetime().possible_values().len() == 3);
@@ -1820,7 +1913,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.duration().min() == 1234567000);
         assert!(new_proto_data_type.duration().max() == 3234567000);
         assert!(new_proto_data_type.duration().possible_values().is_empty());
@@ -1853,7 +1946,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(new_proto_data_type.duration().min() == 1234567000);
         assert!(new_proto_data_type.duration().max() == 3234567000);
         assert!(
@@ -1881,7 +1974,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str)?;
         let sarus_type = DataType::from(&proto_data_type);
         println!("sarus_type: {:?}", sarus_type);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         //println!("new_proto_data_type: {:#?}", new_proto_data_type);
         assert!(new_proto_data_type.duration().min() == 123456700000000000);
         assert!(new_proto_data_type.duration().max() == 3234567000000000000);
@@ -1910,7 +2003,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str)?;
         let sarus_type = DataType::from(&proto_data_type);
         println!("sarus_type: {:?}", sarus_type);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         println!("{:#?}", new_proto_data_type);
         assert!(new_proto_data_type.duration().min() == 123456700000000000);
         assert!(new_proto_data_type.duration().max() == 3234567000000000000);
@@ -1939,7 +2032,7 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::id());
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
 
         Ok(())
@@ -1987,18 +2080,20 @@ mod tests {
           }
         "#;
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
+
+        
         let sarus_type = DataType::from(&proto_data_type);
         let ok_results = DataType::Struct(data_type::Struct::new(vec![
             (
                 "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
+                Arc::new(DataType::integer_interval(
                     -9223372036854775808,
                     9223372036854775807,
                 )),
             ),
             (
                 "text".to_string(),
-                Rc::new(DataType::text_values(vec![
+                Arc::new(DataType::text_values(vec![
                     "a".to_string(),
                     "b".to_string(),
                     "c".to_string(),
@@ -2006,7 +2101,7 @@ mod tests {
             ),
         ]));
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         println!("\nnew: {:?}", new_proto_data_type.struct_().fields());
         assert_eq!(new_proto_data_type.struct_().fields().len(), 2);
         assert_eq!(
@@ -2087,14 +2182,14 @@ mod tests {
         let ok_results = DataType::Union(data_type::Union::new(vec![
             (
                 "integer_possible_values".to_string(),
-                Rc::new(DataType::integer_interval(
+                Arc::new(DataType::integer_interval(
                     -9223372036854775808,
                     9223372036854775807,
                 )),
             ),
             (
                 "text".to_string(),
-                Rc::new(DataType::text_values(vec![
+                Arc::new(DataType::text_values(vec![
                     "a".to_string(),
                     "b".to_string(),
                     "c".to_string(),
@@ -2102,7 +2197,7 @@ mod tests {
             ),
         ]));
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         println!("\nold: {:?}", proto_data_type);
         println!("\nnew: {:?}", new_proto_data_type);
         assert_eq!(new_proto_data_type.union().fields().len(), 2);
@@ -2169,7 +2264,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
 
         Ok(())
@@ -2207,7 +2302,7 @@ mod tests {
         println!("{:?}", sarus_type);
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type == new_proto_data_type);
 
         Ok(())
@@ -2247,15 +2342,15 @@ mod tests {
         let sarus_type = DataType::from(&proto_data_type);
         println!("{:?}", sarus_type);
         let ok_results = DataType::Array(data_type::Array::new(
-            Rc::new(DataType::integer_interval(
+            Arc::new(DataType::integer_interval(
                 -9223372036854775808,
                 9223372036854775807,
             )),
-            Rc::new([1]),
+            Arc::new([1]),
         ));
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
-        let new_proto_data_type: type_::Type = sarus_type.try_into()?;
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         //assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
         assert!(proto_data_type == new_proto_data_type);
 

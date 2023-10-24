@@ -17,6 +17,6 @@ jobs:
             - name: Build
               run: cargo build
             - name: Publish
-              run: cargo publish --no-verify --token ${CRATES_TOKEN}
+              run: cargo publish --token ${CRATES_TOKEN}
               env:
                   CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}

@@ -15,7 +15,7 @@ keywords = ["sql", "data"]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-qrlew = "0.5.3"
+qrlew = "0.6.0"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.10"

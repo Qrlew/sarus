@@ -4,7 +4,8 @@ use protobuf_codegen::{Codegen, Customize};
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    protobuf_codegen()?;
+    // Does not fail if build did not succeed
+    protobuf_codegen().unwrap_or_else(|err| println!("Silent error: {err}"));
     Ok(())
 }
 

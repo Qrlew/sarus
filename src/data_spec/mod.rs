@@ -5,7 +5,7 @@
 //! https://www.postgresql.org/docs/14/index.html
 
 use crate::protobuf::{
-    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
+    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError, constraint,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use qrlew::{
@@ -13,10 +13,13 @@ use qrlew::{
     data_type::{self, DataType},
     expr::identifier::Identifier,
     hierarchy::{Hierarchy},
-    relation::{schema::Schema, Relation, Variant as _},
+    relation::{schema::Schema, Constraint, Relation, Variant as _},
     data_type::DataTyped,
 };
 use std::{str::FromStr, error, fmt, sync::Arc, result, convert::{TryFrom, TryInto}, collections::HashSet};
+
+pub const CONSTRAINT: &str = "_CONSTRAINT_";
+pub const CONSTRAINT_UNIQUE: &str = "_UNIQUE_";// We ignore other constraints
 
 // Error management
 
@@ -64,7 +67,7 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
-const PEID_COLUMN: &str = "sarus_protected_entity";
+const PID_COLUMN: &str = "sarus_protected_entity";
 const WEIGHTS: &str = "sarus_weights";
 const PUBLIC: &str = "sarus_is_public";
 
@@ -208,8 +211,8 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
             None => None,
         };
         Ok(Dataset { dataset, schema, size })
-        }
     }
+}
 
 /// Try to build a Schema protobuf from relations
 impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
@@ -234,7 +237,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
         let data_type = type_from_relations(relations,schema_name_path)?;
         let first_level_fields: Vec<(String, type_::Type)> = vec![
             (SARUS_DATA.to_string(), data_type),
-            (PEID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
+            (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
             (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
             (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
         ];
@@ -292,7 +295,6 @@ fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String
         let mut proto_type = type_::Type::new();
         let mut union_type = type_::type_::Union::new();
         let mut proto_fields: Vec<type_::type_::union::Field> = vec![];
-
 
         for path in common_paths.iter() {
             let field_name = &path[path.len()-1];
@@ -892,7 +894,11 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
     fn from(t: &'a type_::type_::Struct) -> Self {
         t.fields()
             .iter()
-            .map(|f| (f.name(), DataType::from(f.type_())))
+            .map(|f| (
+                f.name(),
+                DataType::from(f.type_()),
+                f.type_().properties().get(CONSTRAINT).and_then(|constraint| if (constraint==CONSTRAINT_UNIQUE) {Some(Constraint::Unique)} else {None})
+            ))
             .collect()
     }
 }
@@ -921,8 +927,8 @@ mod tests {
 
     fn relation() -> Relation {
         let schema: Schema = vec![
-            ("a", DataType::integer_interval(-1, 1)),
-            ("b", DataType::float_interval(-2., 2.)),
+            ("a", DataType::integer_interval(-1, 1), None),
+            ("b", DataType::float_interval(-2., 2.), Some(Constraint::Unique)),
         ]
         .into_iter()
         .collect();
@@ -996,7 +1002,8 @@ mod tests {
                                             "float": {
                                                 "min": -2.0,
                                                 "max": 2.0
-                                            }
+                                            },
+                                            "properties": {"_CONSTRAINT_": "_UNIQUE_"}
                                         }
                                     }]
                                 }
@@ -2342,7 +2349,7 @@ mod tests {
         println!("{:?}", ok_results);
         assert!(sarus_type == ok_results);
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
-        //assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
+        assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
         assert!(proto_data_type == new_proto_data_type);
 
         Ok(())

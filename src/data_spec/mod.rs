@@ -1108,7 +1108,8 @@ mod tests {
                                 "float": {
                                   "min": -2.0,
                                   "max": 2.0
-                                }
+                                },
+                                "properties": {"_CONSTRAINT_": "_UNIQUE_"}
                               }
                             }]
                           }

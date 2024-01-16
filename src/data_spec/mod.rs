@@ -282,12 +282,25 @@ fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String
     let common_paths: HashSet<Vec<String>> = extract_paths_with_prefix(relations, prefix);
     if common_paths.is_empty() {
         if let Some(rel) = relations.get(prefix) {
-            let schema_type = &rel.schema().data_type();
-            let proto_type: type_::Type = schema_type.try_into()?;
+            let mut proto_struct = type_::type_::Struct::new();
+            // TODO this is relatively ugly, to be changed
+            for field in rel.schema().fields() {
+                let mut proto_field = type_::type_::struct_::Field::new();
+                let mut proto_field_type: type_::Type = (&field.data_type()).try_into()?;
+                proto_field.set_name(field.name().to_string());
+                if let Some(Constraint::Unique) = field.constraint() {
+                    proto_field_type.set_properties([(CONSTRAINT.to_string(), CONSTRAINT_UNIQUE.to_string())].into());
+                }
+                proto_field.set_type(proto_field_type);
+                proto_struct.fields.push(proto_field);
+            }
+            let mut proto_type = type_::Type::new();
+            proto_type.set_name("Struct".into());
+            proto_type.set_struct(proto_struct);
             Ok(proto_type)
         } else {
             return Err(Error::Other(
-                "Coult not convert relations into data type".to_string(),
+                "Could not convert relations into data type".to_string(),
             ))
         }
     } else {
@@ -897,7 +910,7 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
             .map(|f| (
                 f.name(),
                 DataType::from(f.type_()),
-                f.type_().properties().get(CONSTRAINT).and_then(|constraint| if (constraint==CONSTRAINT_UNIQUE) {Some(Constraint::Unique)} else {None})
+                f.type_().properties().get(CONSTRAINT).and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
             ))
             .collect()
     }
@@ -960,7 +973,9 @@ mod tests {
     fn test_relations_single_entity_path() -> Result<()> {
         let tab_as_relation = relation();
         let rel_schema = tab_as_relation.schema();
-        let schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
+        let mut schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
+        // Pretty ugly but it works
+        schema_type.mut_struct().fields[1].mut_type().mut_properties().insert(CONSTRAINT.into(), CONSTRAINT_UNIQUE.into());
         
         let relations = Hierarchy::from([
             (vec!["my_table"], Arc::new(tab_as_relation.clone())),

@@ -868,9 +868,10 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
             DataType::Id(id) => {
                 let mut id_type = type_::type_::Id::new();
                 id_type.set_unique(id.unique());
+                id_type.set_base(type_::type_::id::Base::STRING);
 
                 proto_type.set_name("Id".to_string());
-                proto_type.set_id(type_::type_::Id::new());
+                proto_type.set_id(id_type);
             }
             DataType::Function(_function) => {
                 return Err(Error::Other(
@@ -2024,9 +2025,30 @@ mod tests {
         let sarus_type = DataType::from(&proto_data_type);
         assert!(sarus_type == DataType::id());
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
+        assert!(new_proto_data_type.id().base() == type_::type_::id::Base::STRING);
+        assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
+
+        let type_str: &str = r#"
+        {
+            "@type": "sarus_data_spec/sarus_data_spec.Type",
+            "id": {
+            "base": "INT64",
+            "unique": true
+            },
+            "name": "Id",
+            "properties": {}
+        }
+        "#;
+        let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
+        let sarus_type = DataType::from(&proto_data_type);
+        assert!(sarus_type == DataType::id());
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
+        assert!(new_proto_data_type.id().base() == type_::type_::id::Base::STRING);
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
 
         Ok(())
+
+
     }
 
     #[test]

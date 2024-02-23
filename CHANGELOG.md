@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2024-02-23
+### Added
+- Change default Prototype Id base to string when converting DataType::Id 
+
 ## [0.6.0] - 2023-12-19
 ### Added
 - Updated Qrlew version

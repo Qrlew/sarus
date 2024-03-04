@@ -1009,7 +1009,7 @@ mod tests {
                                 "optional": {
                                     "type": {
                                         "name": "Id",
-                                        "id": {}
+                                        "id": {"base": "STRING"}
                                     }
                                 }
                             }
@@ -1102,7 +1102,7 @@ mod tests {
                     "optional": {
                       "type": {
                         "name": "Id",
-                        "id": {}
+                        "id": {"base": "STRING"}
                       }
                     }
                   }

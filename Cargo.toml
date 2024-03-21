@@ -25,11 +25,12 @@ paste = "1.0.7"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-protobuf = "3.3.0"
+protobuf = "^3.4.0"
 protobuf-json-mapping = "3.3.0"
 
 [build-dependencies]
 anyhow = "1.0"
 glob = "0.3"
-protobuf = "3.3.0"
+protobuf = "^3.4.0"
 protobuf-codegen = "3.3.0"
+

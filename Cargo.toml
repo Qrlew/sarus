@@ -15,7 +15,7 @@ keywords = ["sql", "data"]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-qrlew = "0.9.17"
+qrlew = { version = "0.9.17", features = ["graphviz_display"] }
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.11"

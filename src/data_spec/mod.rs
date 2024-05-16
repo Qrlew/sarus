@@ -482,7 +482,6 @@ fn statistics_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<
 /*
 A few utilities to visit types and statistics
  */
-/// It returns a Vector with (Identifier, Struct)
 fn table_structs<'a>(
     t: &'a type_::Type,
     s: Option<&'a statistics::Statistics>,
@@ -1022,8 +1021,6 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
         Ok(proto_type)
     }
 }
-
-
 
 /// Builds a Table Schema out of a Sarus Struct
 impl<'a> From<&'a type_::type_::Struct> for Schema {

@@ -131,7 +131,7 @@ impl Dataset {
         self.schema.type_()
     }
 
-    /// It returns true if the schema has SARUS_DATA in the first level Struct
+    /// It returns true if the schema has SARUS_DATA field in the top level Struct
     pub fn schema_has_admin_columns(&self) -> bool {
         match self.schema.type_().type_.as_ref() {
             Some(type_::type_::Type::Struct(s)) => {
@@ -152,7 +152,7 @@ impl Dataset {
 
     /// It returns a Vector with field name and a reference to the associated
     /// type of admin columns if present in the schema.
-    pub fn admin_fields_types(&self) -> Vec<(&str, &type_::Type)> {
+    pub fn admin_names_and_types(&self) -> Vec<(&str, &type_::Type)> {
         if self.schema_has_admin_columns() {
             match self.schema.type_().type_.as_ref() {
                 Some(type_::type_::Type::Struct(s)) => {
@@ -192,7 +192,7 @@ impl Dataset {
     }
 
     pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
-        let admin_cols_and_types = self.admin_fields_types();
+        let admin_cols_and_types = self.admin_names_and_types();
         let relations_without_prefix: Hierarchy<Arc<Relation>> = table_structs(self.schema_type_data(), self.size_statistics())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
@@ -1098,7 +1098,6 @@ fn relation_from_struct<'a>(
 mod tests {
     use super::*;
     use anyhow::Result;
-    use protobuf::well_known_types::type_::Field;
     use qrlew::{data_type::Id, display::Dot, relation::Table};
 
     fn relation() -> Relation {
@@ -1199,29 +1198,168 @@ mod tests {
                 }
             }
         "#;
-        // let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
-        // println!("SCHEMA: {}", parsed_schema);
         let dataset = Dataset::parse_from_dataset_schema_size("{}", schema_str, "")?;
         println!("{}", dataset);
         let relations = dataset.relations();
         let pu_admin_cols = vec![PID_COLUMN, PUBLIC, WEIGHTS];
-        if let Some(rel) = relations.get(&["my_table".to_string()]) {
-            rel.display_dot().unwrap();
-            let fields = rel.schema().fields();
-            let pu_vec: Vec<_> = fields
-                .iter()
-                .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
-                .collect();
-            assert!(pu_vec.len()==pu_admin_cols.len());
-            let pu_field = field::Field::from((
-                PID_COLUMN,
-                DataType::optional(DataType::from(Id::new(None, true))),
-                Constraint::Unique
-            ));
-            assert!(pu_vec.contains(&&pu_field))
-        }
+        let rel = relations.get(&["my_table".to_string()]).unwrap(); 
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, true))),
+            Constraint::Unique
+        ));
+        assert!(pu_vec.contains(&&pu_field));
         Ok(())
     }
+
+    #[test]
+    fn test_admin_cols_in_relations() ->  Result<()> {
+        let schema_str = r#"
+        {
+            "name": "a",
+            "type": {
+              "name": "Struct",
+              "struct": {
+                "fields": [{
+                  "name": "sarus_data",
+                  "type": {
+                    "name": "Union",
+                    "union": {
+                      "fields": [{
+                        "name": "c",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }, {
+                        "name": "b",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Id",
+                                "id": {"base": "STRING", "unique": true}
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }, {
+                  "name": "sarus_privacy_unit",
+                  "type": {
+                    "name": "Optional",
+                    "optional": {
+                      "type": {
+                        "name": "Id",
+                        "id": {}
+                      }
+                    }
+                  }
+                }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
+                  "name": "sarus_weights",
+                  "type": {
+                    "name": "Float",
+                    "float": {
+                      "max": 1.7976931348623157e308
+                    }
+                  }
+                }]
+              }
+            }
+          }
+        "#;
+        let dataset = Dataset::parse_from_dataset_schema_size("{}", schema_str, "")?;
+        println!("{}", dataset);
+        let relations = dataset.relations();
+        let pu_admin_cols = vec![PID_COLUMN, PUBLIC, WEIGHTS];
+
+        // checking a.c table
+        let rel = relations.get(&["a".to_string(), "c".to_string()]).unwrap();
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, false))),
+            None
+        ));
+        assert!(pu_vec.contains(&&pu_field));
+
+        // checking a.b table
+
+        let rel = relations.get(&["a".to_string(), "b".to_string()]).unwrap();
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, false))),
+            None
+        ));
+        assert!(pu_vec.contains(&&pu_field));
+        let id_col = field::Field::from((
+            "b",
+            DataType::from(Id::new(None, true)),
+            Constraint::Unique
+        ));
+        assert!(fields.contains(&&id_col));
+        Ok(())
+    }
+
 
     #[test]
     fn test_relations_single_entity_path() -> Result<()> {

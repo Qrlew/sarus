@@ -5,10 +5,9 @@
 //! https://www.postgresql.org/docs/14/index.html
 
 use crate::protobuf::{
-    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError, constraint,
+    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use protobuf::well_known_types::type_::Field;
 use qrlew::{
     builder::{Ready, With},
     data_type::{self, DataType},
@@ -157,11 +156,14 @@ impl Dataset {
         if self.schema_has_admin_columns() {
             match self.schema.type_().type_.as_ref() {
                 Some(type_::type_::Type::Struct(s)) => {
-                    s.fields.iter().filter_map(|f|{
-                        if f.name() != SARUS_DATA {
-                            Some((f.name(), f.type_()))
-                        } else {None} 
-                    }).collect()
+                    let filtered_values = s.fields
+                        .iter()
+                        .filter_map(|f|{
+                            if f.name() != SARUS_DATA {
+                                Some((f.name(), f.type_()))
+                            } else {None} 
+                        }).collect();
+                    filtered_values
                 }
                 _ => Vec::new()
             }
@@ -318,7 +320,6 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
         }
         
         let schema: schema::Schema = relations.try_into()?;
-        println!("TRY FROM DATASET SCHEMA: {}", schema);
         let schema_name_path = vec![schema.name().to_string()];
         let size = match statistics_from_relations(relations, &schema_name_path) {
             Some(size_statistics) => {
@@ -333,8 +334,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
 }
 
 /// Try to build a Schema protobuf from relations
-/// Should we add admin structure or not?
-/// PU related admin cols are recongnisible
+/// PU related admin cols are recognizable
 impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
     type Error = Error; 
 
@@ -1023,6 +1023,8 @@ impl <'a> TryFrom<&'a DataType> for type_::Type {
     }
 }
 
+
+
 /// Builds a Table Schema out of a Sarus Struct
 impl<'a> From<&'a type_::type_::Struct> for Schema {
     fn from(t: &'a type_::type_::Struct) -> Self {
@@ -1031,11 +1033,31 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
             .map(|f| (
                 f.name(),
                 DataType::from(f.type_()),
-                f.type_().properties().get(CONSTRAINT).and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
+                unique_constraint_from_field_type(f.type_())
             ))
             .collect()
     }
 }
+
+/// It returns a unique constraint if it is present in the property type
+/// or if the type is an unique Id. 
+fn unique_constraint_from_field_type<'a>(type_: &'a type_::Type) -> Option<Constraint>{
+    let field_constraint = type_.properties().get(CONSTRAINT)
+        .and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
+        .or_else(||{
+            let dtype = DataType::from(type_);
+            match &dtype {
+                DataType::Optional(o) => match o.data_type() {
+                    DataType::Id(id) if id.unique() => Some(Constraint::Unique),
+                    _ => None,
+                },
+                DataType::Id(id) if id.unique() => Some(Constraint::Unique),
+                _ => None,
+            }
+        });
+    field_constraint
+}
+
 
 
 fn relation_from_struct<'a>(
@@ -1049,12 +1071,15 @@ fn relation_from_struct<'a>(
     let data_fields = data_schema.to_vec();
     let admin_fields = admin_fields
         .iter()
-        .map(|(field_name, field_type)| 
+        .map(|(field_name, field_type)| {
+            let dtype = DataType::from(*field_type);
+            let field_constraint = unique_constraint_from_field_type(field_type);
             field::Field::from((
                 *field_name,
-                DataType::from(*field_type),
-                field_type.properties().get(CONSTRAINT).and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
+                dtype,
+                field_constraint
             ))
+        }
         )
         .collect();
     let joined_fields = [data_fields, admin_fields].concat();
@@ -1073,7 +1098,8 @@ fn relation_from_struct<'a>(
 mod tests {
     use super::*;
     use anyhow::Result;
-    use qrlew::{display::Dot, relation::Table};
+    use protobuf::well_known_types::type_::Field;
+    use qrlew::{data_type::Id, display::Dot, relation::Table};
 
     fn relation() -> Relation {
         let schema: Schema = vec![
@@ -1107,9 +1133,12 @@ mod tests {
     }
 
     #[test]
-    fn test_schema() ->  Result<()> {
+    fn test_admin_cols_in_relation() ->  Result<()> {
         let schema_str = r#"
             {
+                "@type": "sarus_data_spec/sarus_data_spec.Schema",
+                "uuid": "5321f24ffb324a9e958c77ceb09b6cc8",
+                "dataset": "c0d13d2c5d404e2c9930e01f63e18cee",
                 "name": "my_table",
                 "type": {
                     "name": "Struct",
@@ -1135,8 +1164,7 @@ mod tests {
                                             "float": {
                                                 "min": -2.0,
                                                 "max": 2.0
-                                            },
-                                            "properties": {"_CONSTRAINT_": "_UNIQUE_"}
+                                            }
                                         }
                                     }]
                                 }
@@ -1148,7 +1176,7 @@ mod tests {
                                 "optional": {
                                     "type": {
                                         "name": "Id",
-                                        "id": {}
+                                        "id": {"base": "STRING", "unique": true}
                                     }
                                 }
                             }
@@ -1171,8 +1199,27 @@ mod tests {
                 }
             }
         "#;
-        let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
-        println!("{}",parsed_schema);
+        // let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        // println!("SCHEMA: {}", parsed_schema);
+        let dataset = Dataset::parse_from_dataset_schema_size("{}", schema_str, "")?;
+        println!("{}", dataset);
+        let relations = dataset.relations();
+        let pu_admin_cols = vec![PID_COLUMN, PUBLIC, WEIGHTS];
+        if let Some(rel) = relations.get(&["my_table".to_string()]) {
+            rel.display_dot().unwrap();
+            let fields = rel.schema().fields();
+            let pu_vec: Vec<_> = fields
+                .iter()
+                .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+                .collect();
+            assert!(pu_vec.len()==pu_admin_cols.len());
+            let pu_field = field::Field::from((
+                PID_COLUMN,
+                DataType::optional(DataType::from(Id::new(None, true))),
+                Constraint::Unique
+            ));
+            assert!(pu_vec.contains(&&pu_field))
+        }
         Ok(())
     }
 
@@ -1180,21 +1227,15 @@ mod tests {
     fn test_relations_single_entity_path() -> Result<()> {
         let tab_as_relation = relation();
         let rel_schema = tab_as_relation.schema();
-        tab_as_relation.display_dot().unwrap();
-        println!("SCHEMA: {rel_schema}");
         let mut schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
-        println!("SCHEMA TYPE: {schema_type}");
         // Pretty ugly but it works
         schema_type.mut_struct().fields[1].mut_type().mut_properties().insert(CONSTRAINT.into(), CONSTRAINT_UNIQUE.into());
-        println!("SCHEMA TYPE MODIFIED: {schema_type}");
 
         let relations = Hierarchy::from([
             (vec!["my_table"], Arc::new(tab_as_relation.clone())),
         ]);
         
         let ds = Dataset::try_from(&relations)?;
-
-        println!("DATASET SCHEMA: {}", ds.schema());
 
         let ds_schema_proto = ds.schema();
         let ds_size_proto = ds.size();

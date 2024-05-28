@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.9.18] - 2024-05-16
+### Changed
+- Add admin columns present in the dataset schema in each table in the dataset
+
 ## [0.9.5] - 2024-03-21
 ### Fixed
 - Fix protobuf version

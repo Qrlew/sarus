@@ -5,7 +5,7 @@
 //! https://www.postgresql.org/docs/14/index.html
 
 use crate::protobuf::{
-    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError, constraint,
+    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use qrlew::{
@@ -13,7 +13,7 @@ use qrlew::{
     data_type::{self, DataType},
     expr::identifier::Identifier,
     hierarchy::Hierarchy,
-    relation::{schema::Schema, Constraint, Relation, Variant as _},
+    relation::{schema::Schema, Constraint, Relation, field, Variant as _},
     data_type::DataTyped,
 };
 use std::{str::FromStr, error, fmt, sync::Arc, result, convert::{TryFrom, TryInto}, collections::HashSet};
@@ -72,7 +72,7 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
-const PID_COLUMN: &str = "sarus_protected_entity";
+const PID_COLUMN: &str = "sarus_privacy_unit";
 const WEIGHTS: &str = "sarus_weights";
 const PUBLIC: &str = "sarus_is_public";
 
@@ -131,7 +131,48 @@ impl Dataset {
         self.schema.type_()
     }
 
-    /// Returns the SARUS_DATA type part of the schema type
+    /// It returns true if the schema has SARUS_DATA field in the top level Struct
+    pub fn schema_has_admin_columns(&self) -> bool {
+        match self.schema.type_().type_.as_ref() {
+            Some(type_::type_::Type::Struct(s)) => {
+                if let Some(has_admin_columns) = s
+                    .fields()
+                    .iter()
+                    .find_map(|f| {
+                        if f.name() == SARUS_DATA {
+                            Some(true)
+                        } else { None }
+                    }) {
+                    has_admin_columns
+                } else { false }
+            }
+            _ => false
+        }
+    }
+
+    /// It returns a Vector with field name and a reference to the associated
+    /// type of admin columns if present in the schema.
+    pub fn admin_names_and_types(&self) -> Vec<(&str, &type_::Type)> {
+        if self.schema_has_admin_columns() {
+            match self.schema.type_().type_.as_ref() {
+                Some(type_::type_::Type::Struct(s)) => {
+                    let filtered_values = s.fields
+                        .iter()
+                        .filter_map(|f|{
+                            if f.name() != SARUS_DATA {
+                                Some((f.name(), f.type_()))
+                            } else {None} 
+                        }).collect();
+                    filtered_values
+                }
+                _ => Vec::new()
+            }
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Returns the SARUS_DATA type part of the schema type.
     pub fn schema_type_data(&self) -> &type_::Type {
         match self.schema.type_().type_.as_ref() {
             Some(type_::type_::Type::Struct(s)) => {
@@ -151,10 +192,11 @@ impl Dataset {
     }
 
     pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
+        let admin_cols_and_types = self.admin_names_and_types();
         let relations_without_prefix: Hierarchy<Arc<Relation>> = table_structs(self.schema_type_data(), self.size_statistics())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
-                (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct)))
+                (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct, &admin_cols_and_types)))
             })
             .collect();
         let schema_name = self.schema().name();
@@ -276,6 +318,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
         if path_prefixes_set.len() > 1 {
             return Err(Error::Other("Relations have paths with not a unique head. Could not transform Relations into multiple Datasets.".to_string()))
         }
+        
         let schema: schema::Schema = relations.try_into()?;
         let schema_name_path = vec![schema.name().to_string()];
         let size = match statistics_from_relations(relations, &schema_name_path) {
@@ -291,6 +334,7 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for Dataset {
 }
 
 /// Try to build a Schema protobuf from relations
+/// PU related admin cols are recognizable
 impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
     type Error = Error; 
 
@@ -986,18 +1030,57 @@ impl<'a> From<&'a type_::type_::Struct> for Schema {
             .map(|f| (
                 f.name(),
                 DataType::from(f.type_()),
-                f.type_().properties().get(CONSTRAINT).and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
+                unique_constraint_from_field_type(f.type_())
             ))
             .collect()
     }
 }
 
+/// It returns a unique constraint if it is present in the property type
+/// or if the type is an unique Id. 
+fn unique_constraint_from_field_type<'a>(type_: &'a type_::Type) -> Option<Constraint>{
+    let field_constraint = type_.properties().get(CONSTRAINT)
+        .and_then(|constraint| if constraint==CONSTRAINT_UNIQUE {Some(Constraint::Unique)} else {None})
+        .or_else(||{
+            let dtype = DataType::from(type_);
+            match &dtype {
+                DataType::Optional(o) => match o.data_type() {
+                    DataType::Id(id) if id.unique() => Some(Constraint::Unique),
+                    _ => None,
+                },
+                DataType::Id(id) if id.unique() => Some(Constraint::Unique),
+                _ => None,
+            }
+        });
+    field_constraint
+}
+
+
+
 fn relation_from_struct<'a>(
     identifier: Identifier,
     schema_struct: &'a type_::type_::Struct,
     size_struct: Option<&'a statistics::statistics::Struct>,
+    admin_fields: &Vec<(&str, &'a type_::Type)>,
 ) -> Relation {
-    let schema: Schema = schema_struct.try_into().unwrap();
+
+    let data_schema: Schema = schema_struct.try_into().unwrap();
+    let data_fields = data_schema.to_vec();
+    let admin_fields = admin_fields
+        .iter()
+        .map(|(field_name, field_type)| {
+            let dtype = DataType::from(*field_type);
+            let field_constraint = unique_constraint_from_field_type(field_type);
+            field::Field::from((
+                *field_name,
+                dtype,
+                field_constraint
+            ))
+        }
+        )
+        .collect();
+    let joined_fields = [data_fields, admin_fields].concat();
+    let schema = Schema::new(joined_fields);
     let mut builder = Relation::table().schema(schema);
     // Create a table builder with a name
     builder = builder.path(identifier);
@@ -1012,7 +1095,7 @@ fn relation_from_struct<'a>(
 mod tests {
     use super::*;
     use anyhow::Result;
-    use qrlew::{relation::Table};
+    use qrlew::{data_type::Id, display::Dot, relation::Table};
 
     fn relation() -> Relation {
         let schema: Schema = vec![
@@ -1046,16 +1129,247 @@ mod tests {
     }
 
     #[test]
+    fn test_admin_cols_in_relation() ->  Result<()> {
+        let schema_str = r#"
+            {
+                "@type": "sarus_data_spec/sarus_data_spec.Schema",
+                "uuid": "5321f24ffb324a9e958c77ceb09b6cc8",
+                "dataset": "c0d13d2c5d404e2c9930e01f63e18cee",
+                "name": "my_table",
+                "type": {
+                    "name": "Struct",
+                    "struct": {
+                        "fields": [{
+                            "name": "sarus_data",
+                            "type": {
+                                "name": "Struct",
+                                "struct": {
+                                    "fields": [{
+                                        "name": "a",
+                                        "type": {
+                                            "name": "Integer",
+                                            "integer": {
+                                                "min": "-1",
+                                                "max": "1"
+                                            }
+                                        }
+                                    }, {
+                                        "name": "b",
+                                        "type": {
+                                            "name": "Float",
+                                            "float": {
+                                                "min": -2.0,
+                                                "max": 2.0
+                                            }
+                                        }
+                                    }]
+                                }
+                            }
+                        }, {
+                            "name": "sarus_privacy_unit",
+                            "type": {
+                                "name": "Optional",
+                                "optional": {
+                                    "type": {
+                                        "name": "Id",
+                                        "id": {"base": "STRING", "unique": true}
+                                    }
+                                }
+                            }
+                        }, {
+                            "name": "sarus_is_public",
+                            "type": {
+                                "name": "Boolean",
+                                "boolean": {}
+                            }
+                        }, {
+                            "name": "sarus_weights",
+                            "type": {
+                                "name": "Float",
+                                "float": {
+                                    "max": 1.7976931348623157e308
+                                }
+                            }
+                        }]
+                    }
+                }
+            }
+        "#;
+        let dataset = Dataset::parse_from_dataset_schema_size("{}", schema_str, "")?;
+        println!("{}", dataset);
+        let relations = dataset.relations();
+        let pu_admin_cols = vec![PID_COLUMN, PUBLIC, WEIGHTS];
+        let rel = relations.get(&["my_table".to_string()]).unwrap(); 
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, true))),
+            Constraint::Unique
+        ));
+        assert!(pu_vec.contains(&&pu_field));
+        Ok(())
+    }
+
+    #[test]
+    fn test_admin_cols_in_relations() ->  Result<()> {
+        let schema_str = r#"
+        {
+            "name": "a",
+            "type": {
+              "name": "Struct",
+              "struct": {
+                "fields": [{
+                  "name": "sarus_data",
+                  "type": {
+                    "name": "Union",
+                    "union": {
+                      "fields": [{
+                        "name": "c",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Float",
+                                "float": {
+                                  "min": -2.0,
+                                  "max": 2.0
+                                }
+                              }
+                            }]
+                          }
+                        }
+                      }, {
+                        "name": "b",
+                        "type": {
+                          "name": "Struct",
+                          "struct": {
+                            "fields": [{
+                              "name": "a",
+                              "type": {
+                                "name": "Integer",
+                                "integer": {
+                                  "min": "-1",
+                                  "max": "1"
+                                }
+                              }
+                            }, {
+                              "name": "b",
+                              "type": {
+                                "name": "Id",
+                                "id": {"base": "STRING", "unique": true}
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }, {
+                  "name": "sarus_privacy_unit",
+                  "type": {
+                    "name": "Optional",
+                    "optional": {
+                      "type": {
+                        "name": "Id",
+                        "id": {}
+                      }
+                    }
+                  }
+                }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
+                  "name": "sarus_weights",
+                  "type": {
+                    "name": "Float",
+                    "float": {
+                      "max": 1.7976931348623157e308
+                    }
+                  }
+                }]
+              }
+            }
+          }
+        "#;
+        let dataset = Dataset::parse_from_dataset_schema_size("{}", schema_str, "")?;
+        println!("{}", dataset);
+        let relations = dataset.relations();
+        let pu_admin_cols = vec![PID_COLUMN, PUBLIC, WEIGHTS];
+
+        // checking a.c table
+        let rel = relations.get(&["a".to_string(), "c".to_string()]).unwrap();
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, false))),
+            None
+        ));
+        assert!(pu_vec.contains(&&pu_field));
+
+        // checking a.b table
+
+        let rel = relations.get(&["a".to_string(), "b".to_string()]).unwrap();
+        rel.display_dot().unwrap();
+        let fields = rel.schema().fields();
+        let pu_vec: Vec<_> = fields
+            .iter()
+            .filter_map(|f| if pu_admin_cols.contains(&f.name()) {Some(f)} else {None})
+            .collect();
+        assert!(pu_vec.len()==pu_admin_cols.len());
+        let pu_field = field::Field::from((
+            PID_COLUMN,
+            DataType::optional(DataType::from(Id::new(None, false))),
+            None
+        ));
+        assert!(pu_vec.contains(&&pu_field));
+        let id_col = field::Field::from((
+            "b",
+            DataType::from(Id::new(None, true)),
+            Constraint::Unique
+        ));
+        assert!(fields.contains(&&id_col));
+        Ok(())
+    }
+
+
+    #[test]
     fn test_relations_single_entity_path() -> Result<()> {
         let tab_as_relation = relation();
         let rel_schema = tab_as_relation.schema();
         let mut schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
         // Pretty ugly but it works
         schema_type.mut_struct().fields[1].mut_type().mut_properties().insert(CONSTRAINT.into(), CONSTRAINT_UNIQUE.into());
-        
+
         let relations = Hierarchy::from([
             (vec!["my_table"], Arc::new(tab_as_relation.clone())),
         ]);
+        
         let ds = Dataset::try_from(&relations)?;
 
         let ds_schema_proto = ds.schema();
@@ -1100,7 +1414,7 @@ mod tests {
                                 }
                             }
                         }, {
-                            "name": "sarus_protected_entity",
+                            "name": "sarus_privacy_unit",
                             "type": {
                                 "name": "Optional",
                                 "optional": {
@@ -1194,7 +1508,7 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_protected_entity",
+                  "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
                     "optional": {
@@ -1314,7 +1628,7 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_protected_entity",
+                  "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
                     "optional": {
@@ -1478,7 +1792,7 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_protected_entity",
+                  "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
                     "optional": {

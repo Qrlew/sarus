@@ -193,13 +193,14 @@ impl Dataset {
 
     pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
         let admin_cols_and_types = self.admin_names_and_types();
+        let schema_name = self.schema().name();
         let relations_without_prefix: Hierarchy<Arc<Relation>> = table_structs(self.schema_type_data(), self.size_statistics())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
+                let identifier: Identifier = if identifier.len() == 0 {[schema_name].into()} else {identifier};
                 (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct, &admin_cols_and_types)))
             })
             .collect();
-        let schema_name = self.schema().name();
         relations_without_prefix.prepend(&[schema_name.to_string()])
     }
 

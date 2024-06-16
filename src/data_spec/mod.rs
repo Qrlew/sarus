@@ -354,13 +354,23 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
         let mut schema_type = type_::Type::new();
         let mut first_level_struct = type_::type_::Struct::new();
         let mut first_level_proto_fields: Vec<type_::type_::struct_::Field> = vec![];
+        let have_admin_fields = relations.iter()
+            .map(|(_path, rel)|rel.schema().iter().map(|field| [PID_COLUMN, PUBLIC, WEIGHTS].contains(&field.name())).any(|x| x==true))
+            .any(|x| x==true);
+
         let data_type = type_from_relations(relations,schema_name_path)?;
-        let first_level_fields: Vec<(String, type_::Type)> = vec![
-            (SARUS_DATA.to_string(), data_type),
-            (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
-            (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
-            (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
-        ];
+        let first_level_fields: Vec<(String, type_::Type)> = if have_admin_fields {
+            vec![
+                (SARUS_DATA.to_string(), data_type),
+                (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
+                (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
+                (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
+            ]
+        } else {
+            vec![
+                (SARUS_DATA.to_string(), data_type),
+            ]
+        };
         for (name, dtype) in first_level_fields.into_iter() {
             let mut data_field = type_::type_::struct_::Field::new();
             data_field.set_name(name.to_string());

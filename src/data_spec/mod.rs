@@ -72,9 +72,10 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
+const PUBLIC: &str = "sarus_is_public";
 const PID_COLUMN: &str = "sarus_privacy_unit";
 const WEIGHTS: &str = "sarus_weights";
-const PUBLIC: &str = "sarus_is_public";
+
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -362,8 +363,8 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
         let first_level_fields: Vec<(String, type_::Type)> = if have_admin_fields {
             vec![
                 (SARUS_DATA.to_string(), data_type),
-                (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
                 (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
+                (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
                 (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
             ]
         } else {
@@ -1120,6 +1121,20 @@ mod tests {
         tab
     }
 
+    fn relation_with_pu() -> Relation {
+        let schema: Schema = vec![
+            ("a", DataType::integer_interval(-1, 1), None),
+            ("b", DataType::float_interval(-2., 2.), Some(Constraint::Unique)),
+            ("sarus_privacy_unit", DataType::optional(DataType::id()), None),
+            ("sarus_is_public", DataType::boolean(), None),
+            ("sarus_weights", DataType::float_max(1.7976931348623157e308), None),
+        ]
+        .into_iter()
+        .collect();
+        let tab: Relation = Table::builder().schema(schema).size(200).build();
+        tab
+    }
+
     #[test]
     fn test_relations_empty_path() -> Result<()> {
         let empty_path: Vec<String> = vec![];
@@ -1372,7 +1387,7 @@ mod tests {
 
     #[test]
     fn test_relations_single_entity_path() -> Result<()> {
-        let tab_as_relation = relation();
+        let tab_as_relation = relation_with_pu();
         let rel_schema = tab_as_relation.schema();
         let mut schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
         // Pretty ugly but it works
@@ -1391,6 +1406,8 @@ mod tests {
             assert!(proto.statistics().struct_().size() == 200);
         };
         assert!(ds_schema_proto.name() == "my_table");
+        println!("DS: \n{}", ds.schema_type_data());
+        println!("SC: \n{}", schema_type);
         assert!(ds.schema_type_data() == &schema_type);
         let schema_str = r#"
             {
@@ -1456,6 +1473,8 @@ mod tests {
             }
         "#;
         let parsed_schema: schema::Schema = parse_from_str(schema_str).unwrap();
+        println!("PARSED: \n{}", parsed_schema);
+        println!("DS: \n{}", ds_schema_proto);
         assert!(&parsed_schema==ds_schema_proto);
         Ok(())
     } 

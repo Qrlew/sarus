@@ -72,9 +72,9 @@ Definition of the dataset
  */
 
 const SARUS_DATA: &str = "sarus_data";
-const PUBLIC: &str = "sarus_is_public";
 const PID_COLUMN: &str = "sarus_privacy_unit";
 const WEIGHTS: &str = "sarus_weights";
+const PUBLIC: &str = "sarus_is_public";
 
 
 
@@ -462,7 +462,9 @@ fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String
     }
 }
 
-/// It creates a weight type from relation having admin columns
+/// It creates a weight type from relation with admin columns
+/// with intervals from 0.0 to the max weight in among weight columns
+/// when present
 fn weight_type_from_relations(relations: &Hierarchy<Arc<Relation>>) -> Result<type_::Type> {
     let max_weight: f64 = relations
         .iter()

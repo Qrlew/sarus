@@ -77,6 +77,7 @@ const WEIGHTS: &str = "sarus_weights";
 const PUBLIC: &str = "sarus_is_public";
 
 
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dataset {
     dataset: dataset::Dataset,
@@ -193,13 +194,14 @@ impl Dataset {
 
     pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
         let admin_cols_and_types = self.admin_names_and_types();
+        let schema_name = self.schema().name();
         let relations_without_prefix: Hierarchy<Arc<Relation>> = table_structs(self.schema_type_data(), self.size_statistics())
             .into_iter()
             .map(|(identifier, schema_struct, size_struct)| {
+                let identifier: Identifier = if identifier.len() == 0 {[schema_name].into()} else {identifier};
                 (identifier.clone(), Arc::new(relation_from_struct(identifier, schema_struct, size_struct, &admin_cols_and_types)))
             })
             .collect();
-        let schema_name = self.schema().name();
         relations_without_prefix.prepend(&[schema_name.to_string()])
     }
 
@@ -353,14 +355,25 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
         let mut schema_type = type_::Type::new();
         let mut first_level_struct = type_::type_::Struct::new();
         let mut first_level_proto_fields: Vec<type_::type_::struct_::Field> = vec![];
+        let have_admin_fields = relations.iter()
+            .map(|(_path, rel)|rel.schema().iter().map(|field| [PID_COLUMN, PUBLIC, WEIGHTS].contains(&field.name())).any(|x| x==true))
+            .any(|x| x==true);
 
+        println!("PRINT HAVE ADMIN FIELDS: {}", have_admin_fields);
         let data_type = type_from_relations(relations,schema_name_path)?;
-        let first_level_fields: Vec<(String, type_::Type)> = vec![
-            (SARUS_DATA.to_string(), data_type),
-            (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
-            (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
-            (WEIGHTS.to_string(), (&DataType::float_interval(0.0 as f64, f64::MAX)).try_into()?),
-        ];
+        let first_level_fields: Vec<(String, type_::Type)> = if have_admin_fields {
+            vec![
+                (SARUS_DATA.to_string(), data_type),
+                (PUBLIC.to_string(), (&DataType::boolean()).try_into()?),
+                (PID_COLUMN.to_string(), (&DataType::optional(DataType::id())).try_into()?),
+                (WEIGHTS.to_string(), weight_type_from_relations(relations)?)
+            ]
+        } else {
+            vec![
+                (SARUS_DATA.to_string(), data_type),
+            ]
+        };
+
         for (name, dtype) in first_level_fields.into_iter() {
             let mut data_field = type_::type_::struct_::Field::new();
             data_field.set_name(name.to_string());
@@ -368,6 +381,8 @@ impl <'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
             first_level_proto_fields.push(data_field)
         }
         first_level_struct.set_fields(first_level_proto_fields);
+
+        println!("FIRST LEVEL: {}", first_level_struct);
 
         schema_type.set_name("Struct".to_string());
         schema_type.set_struct(first_level_struct);
@@ -405,14 +420,16 @@ fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String
             let mut proto_struct = type_::type_::Struct::new();
             // TODO this is relatively ugly, to be changed
             for field in rel.schema().fields() {
-                let mut proto_field = type_::type_::struct_::Field::new();
-                let mut proto_field_type: type_::Type = (&field.data_type()).try_into()?;
-                proto_field.set_name(field.name().to_string());
-                if let Some(Constraint::Unique) = field.constraint() {
-                    proto_field_type.set_properties([(CONSTRAINT.to_string(), CONSTRAINT_UNIQUE.to_string())].into());
+                if ![PID_COLUMN, WEIGHTS, PUBLIC].contains(&field.name()) {
+                    let mut proto_field = type_::type_::struct_::Field::new();
+                    let mut proto_field_type: type_::Type = (&field.data_type()).try_into()?;
+                    proto_field.set_name(field.name().to_string());
+                    if let Some(Constraint::Unique) = field.constraint() {
+                        proto_field_type.set_properties([(CONSTRAINT.to_string(), CONSTRAINT_UNIQUE.to_string())].into());
+                    }
+                    proto_field.set_type(proto_field_type);
+                    proto_struct.fields.push(proto_field);
                 }
-                proto_field.set_type(proto_field_type);
-                proto_struct.fields.push(proto_field);
             }
             let mut proto_type = type_::Type::new();
             proto_type.set_name("Struct".into());
@@ -444,6 +461,25 @@ fn type_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String
         Ok(proto_type)
     }
 }
+
+/// It creates a weight type from relation with admin columns
+/// with intervals from 0.0 to the max weight in among weight columns
+/// when present
+fn weight_type_from_relations(relations: &Hierarchy<Arc<Relation>>) -> Result<type_::Type> {
+    let max_weight: f64 = relations
+        .iter()
+        .fold(f64::MAX, |max_bound, (_, rel)| {
+            let weight_field = rel.schema().field(WEIGHTS).ok();
+            let max_weight_field = weight_field
+                .and_then(|f|f.data_type().absolute_upper_bound())
+                .unwrap_or(f64::MAX);
+            max_bound.min(max_weight_field)
+        });
+
+    let proto_type: type_::Type = (&DataType::float_interval(0.0, max_weight)).try_into()?;
+    Ok(proto_type)
+}
+
 
 /// Create a Statistics protobuf from relations
 fn statistics_from_relations(relations: &Hierarchy<Arc<Relation>>, prefix: &Vec<String>) -> Option<statistics::Statistics> {
@@ -1108,6 +1144,20 @@ mod tests {
         tab
     }
 
+    fn relation_with_pu() -> Relation {
+        let schema: Schema = vec![
+            ("a", DataType::integer_interval(-1, 1), None),
+            ("b", DataType::float_interval(-2., 2.), Some(Constraint::Unique)),
+            ("sarus_is_public", DataType::boolean(), None),
+            ("sarus_privacy_unit", DataType::optional(DataType::id()), None),
+            ("sarus_weights", DataType::float_interval(0.0, 50.0), None),
+        ]
+        .into_iter()
+        .collect();
+        let tab: Relation = Table::builder().schema(schema).size(200).build();
+        tab
+    }
+
     #[test]
     fn test_relations_empty_path() -> Result<()> {
         let empty_path: Vec<String> = vec![];
@@ -1360,7 +1410,7 @@ mod tests {
 
     #[test]
     fn test_relations_single_entity_path() -> Result<()> {
-        let tab_as_relation = relation();
+        let tab_as_relation = relation_with_pu();
         let rel_schema = tab_as_relation.schema();
         let mut schema_type: type_::Type = (&rel_schema.data_type()).try_into()?;
         // Pretty ugly but it works
@@ -1379,7 +1429,6 @@ mod tests {
             assert!(proto.statistics().struct_().size() == 200);
         };
         assert!(ds_schema_proto.name() == "my_table");
-        assert!(ds.schema_type_data() == &schema_type);
         let schema_str = r#"
             {
                 "name": "my_table",
@@ -1414,6 +1463,12 @@ mod tests {
                                 }
                             }
                         }, {
+                            "name": "sarus_is_public",
+                            "type": {
+                                "name": "Boolean",
+                                "boolean": {}
+                            }
+                        }, {
                             "name": "sarus_privacy_unit",
                             "type": {
                                 "name": "Optional",
@@ -1425,17 +1480,11 @@ mod tests {
                                 }
                             }
                         }, {
-                            "name": "sarus_is_public",
-                            "type": {
-                                "name": "Boolean",
-                                "boolean": {}
-                            }
-                        }, {
                             "name": "sarus_weights",
                             "type": {
                                 "name": "Float",
                                 "float": {
-                                    "max": 1.7976931348623157e308
+                                    "max": 50
                                 }
                             }
                         }]
@@ -1450,7 +1499,7 @@ mod tests {
 
     #[test]
     fn test_relations_unions_case_1() -> Result<()> {
-        let tab_as_relation = relation();
+        let tab_as_relation = relation_with_pu();
         let relations = Hierarchy::from([
             (vec!["a", "b"], Arc::new(tab_as_relation.clone())),
         ]);
@@ -1508,6 +1557,12 @@ mod tests {
                     }
                   }
                 }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
                   "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
@@ -1519,17 +1574,11 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_is_public",
-                  "type": {
-                    "name": "Boolean",
-                    "boolean": {}
-                  }
-                }, {
                   "name": "sarus_weights",
                   "type": {
                     "name": "Float",
                     "float": {
-                      "max": 1.7976931348623157e308
+                      "max": 50
                     }
                   }
                 }]
@@ -1544,7 +1593,7 @@ mod tests {
 
     #[test]
     fn test_relations_unions_case_2() -> Result<()> {
-        let tab_as_relation = relation();
+        let tab_as_relation = relation_with_pu();
 
         let relations = Hierarchy::from([
             (vec!["a", "b"], Arc::new(tab_as_relation.clone())),
@@ -1628,6 +1677,12 @@ mod tests {
                     }
                   }
                 }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
                   "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
@@ -1639,17 +1694,11 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_is_public",
-                  "type": {
-                    "name": "Boolean",
-                    "boolean": {}
-                  }
-                }, {
                   "name": "sarus_weights",
                   "type": {
                     "name": "Float",
                     "float": {
-                      "max": 1.7976931348623157e308
+                      "max": 50
                     }
                   }
                 }]
@@ -1666,7 +1715,7 @@ mod tests {
 
     #[test]
     fn test_relations_unions_case_3() -> Result<()> {
-        let tab_as_relation = relation();
+        let tab_as_relation = relation_with_pu();
 
         let relations = Hierarchy::from([
             (vec!["a", "b", "d"], Arc::new(tab_as_relation.clone())),
@@ -1792,6 +1841,12 @@ mod tests {
                     }
                   }
                 }, {
+                  "name": "sarus_is_public",
+                  "type": {
+                    "name": "Boolean",
+                    "boolean": {}
+                  }
+                }, {
                   "name": "sarus_privacy_unit",
                   "type": {
                     "name": "Optional",
@@ -1803,17 +1858,11 @@ mod tests {
                     }
                   }
                 }, {
-                  "name": "sarus_is_public",
-                  "type": {
-                    "name": "Boolean",
-                    "boolean": {}
-                  }
-                }, {
                   "name": "sarus_weights",
                   "type": {
                     "name": "Float",
                     "float": {
-                      "max": 1.7976931348623157e308
+                      "max": 50
                     }
                   }
                 }]

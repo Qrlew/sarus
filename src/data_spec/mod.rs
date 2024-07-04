@@ -752,7 +752,9 @@ impl<'a> From<&'a type_::Type> for DataType {
                     DataType::text()
                 }
             }
-            type_::type_::Type::Bytes(type_::type_::Bytes { special_fields: _ }) => DataType::bytes(),
+            type_::type_::Type::Bytes(type_::type_::Bytes { special_fields: _ }) => {
+                DataType::bytes()
+            }
             type_::type_::Type::Struct(type_::type_::Struct { fields, .. }) => {
                 DataType::Struct(data_type::Struct::new(
                     fields
@@ -885,7 +887,9 @@ impl<'a> From<&'a type_::Type> for DataType {
                 }
             }
             type_::type_::Type::Id(type_::type_::Id {
-                unique, reference: _, ..
+                unique,
+                reference: _,
+                ..
             }) => DataType::Id(data_type::Id::new(None, *unique)),
             _ => DataType::Any,
         })

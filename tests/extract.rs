@@ -16,7 +16,7 @@ fn test_dataset() {
 
     for (path, relation) in dataset.relations() {
         println!("{}", path.into_iter().join("."));
-        relation.display_dot();
+        relation.display_dot().unwrap();
         println!("{}", Query::from(relation.as_ref()));
     }
 }

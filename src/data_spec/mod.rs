@@ -237,28 +237,28 @@ impl Dataset {
         max: f64,
     ) -> Result<Self> {
         let mut new_schema = self.schema.clone();
-        let mut sarus_data = new_schema
+        let sarus_data = new_schema
             .mut_type()
             .mut_struct()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == SARUS_DATA)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut schema = sarus_data
+        let schema = sarus_data
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == schema_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut table = schema
+        let table = schema
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == table_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut field = table
+        let field = table
             .mut_type()
             .mut_struct()
             .mut_fields()
@@ -302,28 +302,28 @@ impl Dataset {
         possible_values: &[String],
     ) -> Result<Self> {
         let mut new_schema = self.schema.clone();
-        let mut sarus_data = new_schema
+        let sarus_data = new_schema
             .mut_type()
             .mut_struct()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == SARUS_DATA)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut schema = sarus_data
+        let schema = sarus_data
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == schema_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut table = schema
+        let table = schema
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == table_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut field = table
+        let field = table
             .mut_type()
             .mut_struct()
             .mut_fields()
@@ -357,28 +357,28 @@ impl Dataset {
         constraint: Option<&str>,
     ) -> Result<Self> {
         let mut new_schema = self.schema.clone();
-        let mut sarus_data = new_schema
+        let sarus_data = new_schema
             .mut_type()
             .mut_struct()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == SARUS_DATA)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut schema = sarus_data
+        let schema = sarus_data
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == schema_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut table = schema
+        let table = schema
             .mut_type()
             .mut_union()
             .mut_fields()
             .iter_mut()
             .find(|field| field.name() == table_name)
             .ok_or_else(|| Error::missing_key_error(SARUS_DATA))?;
-        let mut field = table
+        let field = table
             .mut_type()
             .mut_struct()
             .mut_fields()
@@ -752,7 +752,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                     DataType::text()
                 }
             }
-            type_::type_::Type::Bytes(type_::type_::Bytes { special_fields }) => DataType::bytes(),
+            type_::type_::Type::Bytes(type_::type_::Bytes { special_fields: _ }) => DataType::bytes(),
             type_::type_::Type::Struct(type_::type_::Struct { fields, .. }) => {
                 DataType::Struct(data_type::Struct::new(
                     fields
@@ -786,7 +786,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 min,
                 max,
                 possible_values,
-                base,
+                base: _,
                 ..
             }) => {
                 if possible_values.len() > 0 {
@@ -795,14 +795,14 @@ impl<'a> From<&'a type_::Type> for DataType {
                         .map(|d| Ok(NaiveDate::parse_from_str(d, format)?))
                         .collect();
                     possible_dates.map_or_else(
-                        |e| DataType::Any,
+                        |_e| DataType::Any,
                         |possible_dates| DataType::date_values(possible_dates),
                     )
                 } else {
                     NaiveDate::parse_from_str(min, format)
                         .and_then(|min| Ok((min, NaiveDate::parse_from_str(max, format)?)))
                         .map_or_else(
-                            |e| DataType::Any,
+                            |_e| DataType::Any,
                             |(min, max)| DataType::date_interval(min, max),
                         )
                 }
@@ -812,7 +812,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 min,
                 max,
                 possible_values,
-                base,
+                base: _,
                 ..
             }) => {
                 if possible_values.len() > 0 {
@@ -821,14 +821,14 @@ impl<'a> From<&'a type_::Type> for DataType {
                         .map(|d| Ok(NaiveTime::parse_from_str(d, format)?))
                         .collect();
                     possible_times.map_or_else(
-                        |e| DataType::Any,
+                        |_e| DataType::Any,
                         |possible_times| DataType::time_values(possible_times),
                     )
                 } else {
                     NaiveTime::parse_from_str(min, format)
                         .and_then(|min| Ok((min, NaiveTime::parse_from_str(max, format)?)))
                         .map_or_else(
-                            |e| DataType::Any,
+                            |_e| DataType::Any,
                             |(min, max)| DataType::time_interval(min, max),
                         )
                 }
@@ -838,7 +838,7 @@ impl<'a> From<&'a type_::Type> for DataType {
                 min,
                 max,
                 possible_values,
-                base,
+                base: _,
                 ..
             }) => {
                 if possible_values.len() > 0 {
@@ -847,14 +847,14 @@ impl<'a> From<&'a type_::Type> for DataType {
                         .map(|d| Ok(NaiveDateTime::parse_from_str(d, format)?))
                         .collect();
                     possible_date_times.map_or_else(
-                        |e| DataType::Any,
+                        |_e| DataType::Any,
                         |possible_date_times| DataType::date_time_values(possible_date_times),
                     )
                 } else {
                     NaiveDateTime::parse_from_str(min, format)
                         .and_then(|min| Ok((min, NaiveDateTime::parse_from_str(max, format)?)))
                         .map_or_else(
-                            |e| DataType::Any,
+                            |_e| DataType::Any,
                             |(min, max)| DataType::date_time_interval(min, max),
                         )
                 }
@@ -879,13 +879,13 @@ impl<'a> From<&'a type_::Type> for DataType {
                         .map(|d| Ok(format_duration(*d)))
                         .collect();
                     possible_date_times
-                        .map_or_else(|e| DataType::Any, |d| DataType::duration_values(d))
+                        .map_or_else(|_e| DataType::Any, |d| DataType::duration_values(d))
                 } else {
                     DataType::duration_interval(format_duration(*min), format_duration(*max))
                 }
             }
             type_::type_::Type::Id(type_::type_::Id {
-                unique, reference, ..
+                unique, reference: _, ..
             }) => DataType::Id(data_type::Id::new(None, *unique)),
             _ => DataType::Any,
         })

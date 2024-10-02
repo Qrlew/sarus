@@ -5,15 +5,15 @@
 //! https://www.postgresql.org/docs/14/index.html
 
 use crate::protobuf::{
-    constraint, dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError
+    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use qrlew::{
     builder::{Ready, With},
-    data_type::{self, DataType, DataTyped, Id},
+    data_type::{self, DataType, DataTyped},
     expr::identifier::Identifier,
-    hierarchy::{Hierarchy},
-    relation::{field, schema::Schema, Constraint, Relation, Variant as _}, WithoutContext,
+    hierarchy::Hierarchy,
+    relation::{field, schema::Schema, Constraint, Relation, Variant as _}
 };
 use std::{
     collections::HashSet, convert::{TryFrom, TryInto}, error, fmt, ops::Deref, result, str::FromStr, sync::Arc
@@ -207,9 +207,9 @@ impl Dataset {
         let admin_cols_and_types = self.admin_names_and_types();
         let schema_name = self.schema().name();
 
-        let tables = table_structs(self.schema_type_data(), self.size_statistics());
         let relations_without_prefix: Hierarchy<Arc<Relation>> =
-            tables.into_iter()
+            table_structs(self.schema_type_data(), self.size_statistics())
+                .into_iter()
                 .map(|(identifier, schema_struct, size_struct)| {
                     let identifier: Identifier = if identifier.len() == 0 {
                         [schema_name].into()
@@ -704,23 +704,23 @@ fn table_structs<'a>(
     &'a type_::type_::Struct,
     Option<&'a statistics::statistics::Struct>,
 )> {
-    if let Some(_type) = t.type_.as_ref() {
-        match _type {
-            type_::type_::Type::Struct(table_struct) => {
+    if let Some(t) = t.type_.as_ref() {
+        match t {
+            type_::type_::Type::Struct(t) => {
                 // If the type is a Struct
                 let s = s.and_then(|s| s.statistics.as_ref()).and_then(|s| match s {
                     statistics::statistics::Statistics::Struct(s) => Some(s),
                     _ => None,
                 });
-                vec![(Identifier::empty(), table_struct, s)]
+                vec![(Identifier::empty(), t, s)]
             }
-            type_::type_::Type::Union(tables_union) => {
+            type_::type_::Type::Union(t) => {
                 // If the type is a Union
                 let s = s.and_then(|s| s.statistics.as_ref()).and_then(|s| match s {
                     statistics::statistics::Statistics::Union(s) => Some(s),
                     _ => None,
                 });
-                tables_union.fields()
+                t.fields()
                     .iter()
                     .flat_map(|f| {
                         let g = s.and_then(|s| {
@@ -1572,8 +1572,6 @@ mod tests {
         let change = ChangeType::Constrained(Some(CONSTRAINT_UNIQUE.to_string()));
         let new_schema = schema.try_with_change_type_and_path(&change, &path)?;
         println!("NEW SCHEMA WITH CONST\n{},",new_schema);
-        // let new_dataset = dataset.with_constraint("test", "user", "user_id", Some(CONSTRAINT_UNIQUE)).unwrap();
-        // println!("NEW SCHEMA \n{},",new_dataset.schema());
         Ok(())
     }
 
@@ -3240,6 +3238,8 @@ mod tests {
         ]);
         let ds = Dataset::try_from(&relations)?;
         println!("SCHEMA:\n{}", ds.schema());
+        println!("SIZE:\n{}", ds.size().unwrap());
+        println!("STATS:\n{}", ds.size_statistics().unwrap());
         println!(
             "{:?}",
             ds.schema()
@@ -3379,6 +3379,8 @@ mod tests {
         ]);
         let ds = Dataset::try_from(&relations)?;
         println!("SCHEMA:\n{}", ds.schema());
+        println!("SIZE:\n{}", ds.size().unwrap());
+        println!("STATS:\n{}", ds.size_statistics().unwrap());
         println!(
             "{:?}",
             ds.schema()

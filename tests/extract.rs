@@ -20,3 +20,48 @@ fn test_dataset() {
         println!("{}", Query::from(relation.as_ref()));
     }
 }
+
+#[test]
+fn test_dataset_bis() {
+    let ds: &str = r#"{"@type": "sarus_data_spec/sarus_data_spec.Dataset", "uuid": "e9cb9391ca184e89897f49bd75387a46", "name": "Transformed", "spec": {"transformed": {"transform": "98f18c2b0beb406088193dab26e24552", "arguments": [], "named_arguments": {}}}, "properties": {}, "doc": "This ia a demo dataset for testing purpose"}"#;
+    let sch: &str = r#"
+    {
+        "@type": "sarus_data_spec/sarus_data_spec.Schema",
+        "uuid": "ee38558076e845ccb9c4baf7e9f8ba4a",
+        "dataset": "b65e7defe8cb4da18741dec7192a8bc7",
+        "name": "test", 
+        "type": {
+            "name": "test",
+            "struct": {
+                "fields": [{
+                    "name": "user",
+                    "type": {
+                        "name": "Struct",
+                        "struct": {
+                            "fields": [
+                                {"name": "user_id", "type": {"name": "Integer", "integer": {"min": "-9223372036854775808", "max": "9223372036854775807"}}},
+                                {"name": "first_name", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}}},
+                                {"name": "last_name", "type": {"name": "Text UTF-8", "text": {"encoding": "UTF-8"}}}
+                            ]
+                        }
+                    }
+                }]
+            }
+        }
+    }
+    "#;
+    let size: &str = r#"{}"#;
+
+    let dataset = Dataset::parse_from_dataset_schema_size(ds, sch, size).expect("dataset");
+    println!("SCHEMA TYPE:\n {}\n", dataset.schema().type_());
+    println!("HAS ADMIN COLS:\n {}\n", dataset.schema_has_admin_columns());
+    println!("ADMIN NAMES:\n {:?}\n", dataset.admin_names_and_types());
+    println!("SCHEMA DATA TYPE:\n {}\n", dataset.schema_type_data());
+
+
+    for (path, relation) in dataset.relations() {
+        println!("{}", path.into_iter().join("."));
+        relation.display_dot().unwrap();
+        println!("{}", Query::from(relation.as_ref()));
+    }
+}

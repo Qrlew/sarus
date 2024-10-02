@@ -15,7 +15,7 @@ keywords = ["sql", "data"]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-qrlew = "0.9.21"
+qrlew = {version = "0.9.24", features = ["graphviz_display"]}
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.11"
@@ -28,8 +28,6 @@ chrono = { version = "0.4", features = ["serde"] }
 protobuf = "=3.4.0"
 protobuf-json-mapping = "3.3.0"
 
-[dev-dependencies]
-qrlew = { version = "0.9.17", features = ["graphviz_display"] }
 
 [build-dependencies]
 anyhow = "1.0"

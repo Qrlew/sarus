@@ -210,7 +210,6 @@ impl Dataset {
     pub fn relations(&self) -> Hierarchy<Arc<Relation>> {
         let admin_cols_and_types = self.admin_names_and_types();
         let schema_name = self.schema().name();
-
         let relations_without_prefix: Hierarchy<Arc<Relation>> =
             table_structs(self.schema_type_data(), self.size_statistics())
                 .into_iter()
@@ -307,13 +306,8 @@ impl Dataset {
 
 /// Enum to hold the type of change we want to apply
 enum ChangeType {
-    // applied to the properties of a type_::Type
     Constrained(Option<String>),
-    // applied to the type_::type_::Type.
-    // Only Text and Optional(Text) are considered
     PossibleValues(Vec<String>),
-    // applied to the type_::type_::Type.
-    // Only Float and Int with relative Optionals are considered
     Range(Range),
 }
 
@@ -382,9 +376,10 @@ struct Range {
     max: f64,
 }
 
-/// Changes the shem
 impl schema::Schema {
-    /// Generate a new schema with a modified field type.
+    /// Generate a new schema by applying the change to the type
+    /// identified by the identifier. It raises an error if the
+    /// the schema type is not compatible with the identifier.
     fn try_with_change_type_and_identifier(
         &self,
         change_type: &ChangeType,
@@ -402,7 +397,8 @@ impl schema::Schema {
 }
 
 impl type_::Type {
-    /// tries to apply a change to the type_::Type pointed by a fully qualified identifier. It visits types recursively.
+    /// Generate a new type_::Type by applying a change to che child
+    /// identified by the identifier. It passes over children recursively.
     fn try_with_change_type_and_identifier(
         &self,
         change_type: &ChangeType,
@@ -418,7 +414,8 @@ impl type_::Type {
         match self.type_.as_ref() {
             Some(type_::type_::Type::Union(u)) => {
                 let fields = u.fields();
-                // fail if no children path is compatible with the identifier.
+
+                // fail if no children is compatible with the identifier.
                 let _ = fields
                     .iter()
                     .find(|f| {
@@ -433,7 +430,7 @@ impl type_::Type {
                         ))
                     })?;
 
-                let new_fields = fields
+                let fields = fields
                     .iter()
                     .map(|f| {
                         let field_path = visited_path.clone().with(f.name().to_string());
@@ -452,7 +449,7 @@ impl type_::Type {
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let mut new_union = u.clone();
-                new_union.set_fields(new_fields);
+                new_union.set_fields(fields);
                 let mut new_type = self.clone();
                 new_type.set_union(new_union);
                 Ok(new_type)
@@ -461,64 +458,50 @@ impl type_::Type {
                 let fields = s.fields();
                 let mut new_struct = s.clone();
                 let has_sarus_data = fields.iter().find(|f| f.name() == SARUS_DATA).is_some();
-                // if sarus_data in fields apply try_with_change_type_and_identifier to the sarus_data type directly
-                // otherwise
-                if has_sarus_data {
-                    let new_fields = fields
-                        .iter()
-                        .map(|f| {
-                            let new_field_type = if f.name() == SARUS_DATA {
-                                f.type_().try_with_change_type_and_identifier(
-                                    change_type,
-                                    identifier,
-                                    visited_path,
-                                )?
-                            } else {
-                                f.type_().clone()
-                            };
-                            let mut new_field = f.clone();
-                            new_field.set_type(new_field_type);
-                            Ok(new_field)
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-                    new_struct.set_fields(new_fields);
-                } else {
-                    // raise the error if the desired field is not in fields
-                    let _ = fields
-                        .iter()
-                        .find(|f| {
-                            let field_path: Identifier =
-                                visited_path.clone().with(f.name().to_string());
-                            is_prefix_of(&field_path, identifier)
-                        })
-                        .ok_or_else(|| {
-                            Error::Other(format!(
-                                "Path {}, is not compatible with schema type",
-                                identifier
-                            ))
-                        })?;
 
-                    let new_fields = fields
-                        .iter()
-                        .map(|f| {
-                            let field_path: Identifier =
-                                visited_path.clone().with(f.name().to_string());
-                            let new_field_type = if is_prefix_of(&field_path, identifier) {
-                                f.type_().try_with_change_type_and_identifier(
-                                    change_type,
-                                    identifier,
-                                    &field_path,
-                                )?
-                            } else {
-                                f.type_().clone()
-                            };
-                            let mut new_field = f.clone();
-                            new_field.set_type(new_field_type);
-                            Ok(new_field)
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-                    new_struct.set_fields(new_fields);
-                }
+                // fail if no children is compatible with the identifier. skip the check if struct has sarus_data
+                let _ = fields
+                    .iter()
+                    .find(|f| {
+                        let field_path: Identifier =
+                            visited_path.clone().with(f.name().to_string());
+                        is_prefix_of(&field_path, identifier) || has_sarus_data
+                    })
+                    .ok_or_else(|| {
+                        Error::Other(format!(
+                            "Path {}, is not compatible with schema type",
+                            identifier
+                        ))
+                    })?;
+                // recreate fields. call the function recursively for the child
+                // in the identifier
+                let new_fields = fields
+                    .iter()
+                    .map(|f| {
+                        let field_path: Identifier =
+                            visited_path.clone().with(f.name().to_string());
+                        let new_field_type = if f.name() == SARUS_DATA {
+                            f.type_().try_with_change_type_and_identifier(
+                                change_type,
+                                identifier,
+                                &visited_path,
+                            )?
+                        } else if is_prefix_of(&field_path, identifier) {
+                            f.type_().try_with_change_type_and_identifier(
+                                change_type,
+                                identifier,
+                                &field_path,
+                            )?
+                        } else {
+                            f.type_().clone()
+                        };
+                        let mut new_field = f.clone();
+                        new_field.set_type(new_field_type);
+                        Ok(new_field)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                new_struct.set_fields(new_fields);
+
                 new_type.set_struct(new_struct);
                 Ok(new_type)
             }
@@ -548,7 +531,10 @@ impl type_::Type {
                 new_type.set_optional(new_o);
                 Ok(new_type)
             }
-            _ => Err(Error::Other(format!("Wrong path: {}", identifier))),
+            _ => Err(Error::Other(format!(
+                "Should never get here. Got identifier: {} and visited_path: {}, Type: \n{}",
+                identifier, visited_path, self
+            ))),
         }
     }
 }

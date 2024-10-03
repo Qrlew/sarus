@@ -16,7 +16,7 @@ use qrlew::{
     relation::{field, schema::Schema, Constraint, Relation, Variant as _}
 };
 use std::{
-    collections::HashSet, convert::{TryFrom, TryInto}, error, fmt, ops::Deref, result, str::FromStr, sync::Arc
+    collections::HashSet, convert::{TryFrom, TryInto}, error, fmt, result, str::FromStr, sync::Arc
 };
 
 pub const CONSTRAINT: &str = "_CONSTRAINT_";
@@ -240,7 +240,7 @@ impl Dataset {
     ) -> Result<Self> {
         let change_type = ChangeType::Range(Range {min, max});
         let ident = Identifier::from(vec![schema_name.to_string(), table_name.to_string(), field_name.to_string()]);
-        let new_schema = self.schema.try_with_change_type_and_path(&change_type, &ident)?;
+        let new_schema = self.schema.try_with_change_type_and_identifier(&change_type, &ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -257,7 +257,7 @@ impl Dataset {
     ) -> Result<Self> {
         let change_type = ChangeType::PossibleValues(possible_values.to_vec());
         let ident = Identifier::from(vec![schema_name.to_string(), table_name.to_string(), field_name.to_string()]);
-        let new_schema = self.schema.try_with_change_type_and_path(&change_type, &ident)?;
+        let new_schema = self.schema.try_with_change_type_and_identifier(&change_type, &ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -274,7 +274,7 @@ impl Dataset {
     ) -> Result<Self> {
         let change_type = ChangeType::Constrained(constraint.and_then(|f| Some(f.to_string())));
         let ident = Identifier::from(vec![schema_name.to_string(), table_name.to_string(), field_name.to_string()]);
-        let new_schema = self.schema.try_with_change_type_and_path(&change_type, &ident)?;
+        let new_schema = self.schema.try_with_change_type_and_identifier(&change_type, &ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -355,48 +355,41 @@ struct Range {
 /// Changes the shem
 impl schema::Schema {
     /// Generate a new schema with a modified field type.
-    fn try_with_change_type_and_path(&self, change_type: &ChangeType, identifier: &Identifier) -> Result<schema::Schema> {
+    fn try_with_change_type_and_identifier(&self, change_type: &ChangeType, identifier: &Identifier) -> Result<schema::Schema> {
         let mut new_schema = self.clone();
-        let new_types = self.type_().try_with_change_type_and_path(change_type, identifier, &Identifier::from_name(self.name()))?;
+        let new_types = self.type_().try_with_change_type_and_identifier(change_type, identifier, &Identifier::empty())?;
         new_schema.set_type(new_types);
         Ok(new_schema)
     }
 }
 
 impl type_::Type {
-    /// Generate a new schema with a modified field type.
-    fn try_with_change_type_and_path(&self, change_type: &ChangeType, identifier: &Identifier, visited_path: &Identifier) -> Result<type_::Type> {
-        let mut new_type = self.clone();
+    /// tries to apply a change to the type_::Type pointed by a fully qualified identifier. It visits types recursively.
+    fn try_with_change_type_and_identifier(&self, change_type: &ChangeType, identifier: &Identifier, visited_path: &Identifier) -> Result<type_::Type> {
+        let mut new_type = if identifier == visited_path {
+            change_type.apply_constraint(self)
+        } else {
+            self.clone()
+        };
 
-        match (self.type_.as_ref(), identifier) {
-            (Some(type_::type_::Type::Struct(s)), _) => {
-                let fields = s.fields();
+        match self.type_.as_ref() {
+            Some(type_::type_::Type::Union(u)) => {
+                let fields = u.fields();
+                // fail if no children path is compatible with the identifier.
+                let _ = fields.iter().find(|f| {
+                    let field_path: Identifier = visited_path.clone().with(f.name().to_string());
+                    is_prefix_of(&field_path, identifier)
+                }).ok_or_else(|| Error::Other(format!("Path {}, is not compatible with schema type", identifier)))?;
+
                 let new_fields = fields.iter().map(|f|{
-                    let visited_path = visited_path.clone().with(f.name().to_string());
-                    let mut new_field = f.clone();
-                    let new_field_type = if is_suffix_of(identifier.deref(), visited_path.deref()) {
-                        change_type.apply_constraint(f.type_())
+                    let field_path = visited_path.clone().with(f.name().to_string());
+                    let new_field_type = if is_prefix_of(&field_path, identifier) {
+                        f.type_().try_with_change_type_and_identifier(change_type, identifier, &field_path)?
                     } else {
                         f.type_().clone()
                     };
-                    new_field.set_type(
-                        new_field_type.try_with_change_type_and_path(change_type, identifier, &visited_path)?
-                    );
-                    Ok(new_field)
-                }).collect::<Result<Vec<_>>>()?;
-                let mut new_struct = s.clone();
-                new_struct.set_fields(new_fields);
-                new_type.set_struct(new_struct);
-                Ok(new_type)
-            },
-            (Some(type_::type_::Type::Union(u)), _) => {
-                let fields = u.fields();
-                let new_fields = fields.iter().map(|f|{
-                    let visited_path = visited_path.clone().with(f.name().to_string());
                     let mut new_field = f.clone();
-                    let type_with_const = change_type.apply_constraint(f.type_());
-                    let new_type = type_with_const.try_with_change_type_and_path(change_type, identifier, &visited_path)?;
-                    new_field.set_type(new_type);
+                    new_field.set_type(new_field_type);
                     Ok(new_field)
                 }
                 ).collect::<Result<Vec<_>>>()?;
@@ -406,29 +399,70 @@ impl type_::Type {
                 new_type.set_union(new_union);
                 Ok(new_type)
             },
-            (Some(type_::type_::Type::Text(t)), visited_path) => {
+            Some(type_::type_::Type::Struct(s)) => {
+                let fields = s.fields();
+                let mut new_struct = s.clone();
+                let has_sarus_data = fields.iter().find(|f| f.name() == SARUS_DATA).is_some();
+                // if sarus_data in fields apply try_with_change_type_and_identifier to the sarus_data type directly
+                // otherwise 
+                if has_sarus_data {
+                    let new_fields = fields.iter().map(|f|{
+                        let new_field_type = if f.name() == SARUS_DATA {
+                            f.type_().try_with_change_type_and_identifier(change_type, identifier, visited_path)?
+                        } else {
+                            f.type_().clone()
+                        };
+                        let mut new_field = f.clone();
+                        new_field.set_type(new_field_type);
+                        Ok(new_field)
+                    }).collect::<Result<Vec<_>>>()?;
+                    new_struct.set_fields(new_fields);
+                } else {
+                    // raise the error if the desired field is not in fields
+                    let _ = fields.iter().find(|f| {
+                        let field_path: Identifier = visited_path.clone().with(f.name().to_string());
+                        is_prefix_of(&field_path, identifier)
+                    }).ok_or_else(|| Error::Other(format!("Path {}, is not compatible with schema type", identifier)))?;
+
+                    let new_fields = fields.iter().map(|f|{
+                        let field_path: Identifier = visited_path.clone().with(f.name().to_string());
+                        let new_field_type = if is_prefix_of(&field_path, identifier) {
+                            f.type_().try_with_change_type_and_identifier(change_type, identifier, &field_path)?
+                        } else {
+                            f.type_().clone()
+                        };
+                        let mut new_field = f.clone();
+                        new_field.set_type(new_field_type);
+                        Ok(new_field)
+                    }).collect::<Result<Vec<_>>>()?;
+                    new_struct.set_fields(new_fields);
+                }
+                new_type.set_struct(new_struct);
+                Ok(new_type)
+            },
+            Some(type_::type_::Type::Text(t)) => {
                 let new_t = change_type.apply_possible_values(t);
                 new_type.set_text(new_t);
                 Ok(new_type)
             },
-            (Some(type_::type_::Type::Integer(int)), visited_path) => {
+            Some(type_::type_::Type::Integer(int)) => {
                 let new_int = change_type.apply_range_to_int(int);
                 new_type.set_integer(new_int);
                 Ok(new_type)
             }
-            (Some(type_::type_::Type::Float(f)), visited_path) => {
+            Some(type_::type_::Type::Float(f)) => {
                 let new_f = change_type.apply_range_to_float(f);
                 new_type.set_float(new_f);
                 Ok(new_type)
             }
-            (Some(type_::type_::Type::Optional(o)), visited_path) => {
+            Some(type_::type_::Type::Optional(o)) => {
                 let mut new_o = o.clone();
-                let new_opt_type = o.type_().try_with_change_type_and_path(change_type, identifier, visited_path)?;
+                let new_opt_type = o.type_().try_with_change_type_and_identifier(change_type, identifier, visited_path)?;
                 new_o.set_type(new_opt_type);
                 new_type.set_optional(new_o);
                 Ok(new_type)
             },
-            _ => Ok(new_type)
+            _ => Err(Error::Other(format!("Wrong path: {}", identifier)))
         }
     }
 }
@@ -519,6 +553,7 @@ impl<'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
                     .any(|x| x == true)
             })
             .any(|x| x == true);
+        
         if have_admin_fields {
             let mut schema_type = type_::Type::new();
             let first_level_fields: Vec<(String, type_::Type)> = vec![
@@ -550,18 +585,10 @@ impl<'a> TryFrom<&'a Hierarchy<Arc<Relation>>> for schema::Schema {
     }
 }
 
-// Utility functions. They are copied from Qrlew but can't be used because are
-// not public. TODO: making them public
+// Utility functions.
 
 fn is_prefix_of(left: &[String], right: &[String]) -> bool {
     left.iter().zip(right.iter()).all(|(pr, pa)| pr == pa)
-}
-
-fn is_suffix_of(left: &[String], right: &[String]) -> bool {
-    left.iter()
-        .rev()
-        .zip(right.iter().rev())
-        .all(|(s, p)| s == p)
 }
 
 /// Returns a HashSet containing vectors of strings. Each vector represents
@@ -1465,7 +1492,7 @@ mod tests {
                 "dataset": "c0d13d2c5d404e2c9930e01f63e18cee",
                 "name": "my_schema_name",
                 "type": {
-                    "name": "",
+                    "name": "Struct",
                     "struct": {
                         "fields": [{
                             "name": "a",
@@ -1511,7 +1538,6 @@ mod tests {
         Ok(())
     }
 
-    
     #[test]
     fn test_no_admin_cols_in_relation_union() -> Result<()> {
         let schema_str = r#"
@@ -1558,20 +1584,6 @@ mod tests {
             })
             .collect();
         assert!(pu_vec.len() == pu_admin_cols.len());
-        let schema = dataset.schema();
-        println!("OLD SCHEMA \n{},",schema);
-        let path = Identifier::from(vec!["test".to_string(), "user".to_string(), "user_id".to_string()]);
-        let change = ChangeType::Range(Range {min: -10.0, max: 10.0});
-        let new_schema = schema.try_with_change_type_and_path(&change, &path)?;
-        println!("NEW SCHEMA WITH RANGES\n{},",new_schema);
-        let path = Identifier::from(vec!["test".to_string(), "user".to_string(), "first_name".to_string()]);
-        let change = ChangeType::PossibleValues(vec!["MM".to_string(), "AA".to_string()]);
-        let new_schema = schema.try_with_change_type_and_path(&change, &path)?;
-        println!("NEW SCHEMA WITH PV\n{},",new_schema);
-        let path = Identifier::from(vec!["test".to_string(), "user".to_string(), "first_name".to_string()]);
-        let change = ChangeType::Constrained(Some(CONSTRAINT_UNIQUE.to_string()));
-        let new_schema = schema.try_with_change_type_and_path(&change, &path)?;
-        println!("NEW SCHEMA WITH CONST\n{},",new_schema);
         Ok(())
     }
 
@@ -3154,6 +3166,7 @@ mod tests {
             (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
         let ds = Dataset::try_from(&relations)?;
+        println!("SCHEMA: \n{}", ds.schema());
         let ds = ds.with_range("b", "d", "b", -101., 101.)?;
         assert!(
             ds.schema()
@@ -3180,6 +3193,8 @@ mod tests {
                 .min()
                 == -101.
         );
+        let ds = ds.with_range("fake", "d", "b", -101., 101.);
+        assert!(ds.is_err());
         Ok(())
     }
 
@@ -3225,6 +3240,8 @@ mod tests {
                 .min()
                 == -101.
         );
+        let ds = ds.with_range("fake", "d", "b", -101., 101.);
+        assert!(ds.is_err());
         Ok(())
     }
 
@@ -3237,9 +3254,6 @@ mod tests {
             (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
         let ds = Dataset::try_from(&relations)?;
-        println!("SCHEMA:\n{}", ds.schema());
-        println!("SIZE:\n{}", ds.size().unwrap());
-        println!("STATS:\n{}", ds.size_statistics().unwrap());
         println!(
             "{:?}",
             ds.schema()
@@ -3366,6 +3380,8 @@ mod tests {
                 .get(CONSTRAINT)
                 == None
         );
+        let ds = ds.with_constraint("b", "fake", "a", Some(CONSTRAINT_UNIQUE));
+        assert!(ds.is_err());
         Ok(())
     }
 
@@ -3378,9 +3394,6 @@ mod tests {
             (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
         let ds = Dataset::try_from(&relations)?;
-        println!("SCHEMA:\n{}", ds.schema());
-        println!("SIZE:\n{}", ds.size().unwrap());
-        println!("STATS:\n{}", ds.size_statistics().unwrap());
         println!(
             "{:?}",
             ds.schema()
@@ -3538,6 +3551,9 @@ mod tests {
                 .get(CONSTRAINT)
                 == None
         );
+
+        let ds = ds.with_constraint("b", "fake", "a", Some(CONSTRAINT_UNIQUE));
+        assert!(ds.is_err());
         Ok(())
     }
 }

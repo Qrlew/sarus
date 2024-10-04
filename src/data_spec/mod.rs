@@ -235,21 +235,27 @@ impl Dataset {
 
     pub fn with_range(
         &self,
-        schema_name: &str,
+        schema_name: Option<&str>,
         table_name: &str,
         field_name: &str,
         min: f64,
         max: f64,
     ) -> Result<Self> {
         let change_type = ChangeType::Range(Range { min, max });
-        let ident = Identifier::from(vec![
-            schema_name.to_string(),
-            table_name.to_string(),
-            field_name.to_string(),
-        ]);
+
+        let type_ident = if let Some(s) = schema_name {
+            Identifier::from(vec![
+                s.to_string(),
+                table_name.to_string(),
+                field_name.to_string(),
+            ])
+        } else {
+            Identifier::from(vec![table_name.to_string(), field_name.to_string()])
+        };
+
         let new_schema = self
             .schema
-            .try_with_change_type_and_identifier(&change_type, &ident)?;
+            .try_with_change_type_and_identifier(&change_type, &type_ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -259,20 +265,26 @@ impl Dataset {
 
     pub fn with_possible_values(
         &self,
-        schema_name: &str,
+        schema_name: Option<&str>,
         table_name: &str,
         field_name: &str,
         possible_values: &[String],
     ) -> Result<Self> {
         let change_type = ChangeType::PossibleValues(possible_values.to_vec());
-        let ident = Identifier::from(vec![
-            schema_name.to_string(),
-            table_name.to_string(),
-            field_name.to_string(),
-        ]);
+
+        let type_ident = if let Some(s) = schema_name {
+            Identifier::from(vec![
+                s.to_string(),
+                table_name.to_string(),
+                field_name.to_string(),
+            ])
+        } else {
+            Identifier::from(vec![table_name.to_string(), field_name.to_string()])
+        };
+
         let new_schema = self
             .schema
-            .try_with_change_type_and_identifier(&change_type, &ident)?;
+            .try_with_change_type_and_identifier(&change_type, &type_ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -282,20 +294,24 @@ impl Dataset {
 
     pub fn with_constraint(
         &self,
-        schema_name: &str,
+        schema_name: Option<&str>,
         table_name: &str,
         field_name: &str,
         constraint: Option<&str>,
     ) -> Result<Self> {
         let change_type = ChangeType::Constrained(constraint.and_then(|f| Some(f.to_string())));
-        let ident = Identifier::from(vec![
-            schema_name.to_string(),
-            table_name.to_string(),
-            field_name.to_string(),
-        ]);
+        let type_ident = if let Some(s) = schema_name {
+            Identifier::from(vec![
+                s.to_string(),
+                table_name.to_string(),
+                field_name.to_string(),
+            ])
+        } else {
+            Identifier::from(vec![table_name.to_string(), field_name.to_string()])
+        };
         let new_schema = self
             .schema
-            .try_with_change_type_and_identifier(&change_type, &ident)?;
+            .try_with_change_type_and_identifier(&change_type, &type_ident)?;
         Ok(Dataset::new(
             self.dataset.clone(),
             new_schema,
@@ -1658,6 +1674,98 @@ mod tests {
             })
             .collect();
         assert!(pu_vec.len() == pu_admin_cols.len());
+
+        let new_ds = dataset.with_constraint(None, "user", "user_id", Some(CONSTRAINT_UNIQUE))?;
+        assert!(
+            new_ds
+                .schema()
+                .type_()
+                .union()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "user")
+                .unwrap()
+                .type_()
+                .struct_()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "user_id")
+                .unwrap()
+                .type_()
+                .properties()
+                .get(CONSTRAINT)
+                .unwrap()
+                == CONSTRAINT_UNIQUE
+        );
+        let new_ds = new_ds.with_constraint(None, "user", "user_id", None)?;
+        assert!(new_ds
+            .schema()
+            .type_()
+            .union()
+            .fields()
+            .iter()
+            .find(|f| f.name() == "user")
+            .unwrap()
+            .type_()
+            .struct_()
+            .fields()
+            .iter()
+            .find(|f| f.name() == "user_id")
+            .unwrap()
+            .type_()
+            .properties()
+            .get(CONSTRAINT)
+            .is_none());
+
+        let new_ds = new_ds.with_range(None, "user", "user_id", -100.0, 100.0)?;
+        assert!(
+            new_ds
+                .schema()
+                .type_()
+                .union()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "user")
+                .unwrap()
+                .type_()
+                .struct_()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "user_id")
+                .unwrap()
+                .type_()
+                .integer()
+                .min()
+                == -100
+        );
+
+        let new_ds = new_ds.with_possible_values(
+            None,
+            "user",
+            "first_name",
+            &["AA".to_string(), "BB".to_string()],
+        )?;
+        assert!(
+            new_ds
+                .schema()
+                .type_()
+                .union()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "user")
+                .unwrap()
+                .type_()
+                .struct_()
+                .fields()
+                .iter()
+                .find(|f| f.name() == "first_name")
+                .unwrap()
+                .type_()
+                .text()
+                .possible_values()
+                == &["AA", "BB"]
+        );
+
         Ok(())
     }
 
@@ -3241,7 +3349,7 @@ mod tests {
         ]);
         let ds = Dataset::try_from(&relations)?;
         println!("SCHEMA: \n{}", ds.schema());
-        let ds = ds.with_range("b", "d", "b", -101., 101.)?;
+        let ds = ds.with_range(Some("b"), "d", "b", -101., 101.)?;
         assert!(
             ds.schema()
                 .type_()
@@ -3267,7 +3375,7 @@ mod tests {
                 .min()
                 == -101.
         );
-        let ds = ds.with_range("fake", "d", "b", -101., 101.);
+        let ds = ds.with_range(Some("fake"), "d", "b", -101., 101.);
         assert!(ds.is_err());
         Ok(())
     }
@@ -3281,7 +3389,7 @@ mod tests {
             (vec!["a", "c"], Arc::new(tab_as_relation.clone())),
         ]);
         let ds = Dataset::try_from(&relations)?;
-        let ds = ds.with_range("b", "d", "b", -101., 101.)?;
+        let ds = ds.with_range(Some("b"), "d", "b", -101., 101.)?;
         println!("SCHEMA: \n{}\n", ds.schema());
         assert!(
             ds.schema()
@@ -3314,7 +3422,7 @@ mod tests {
                 .min()
                 == -101.
         );
-        let ds = ds.with_range("fake", "d", "b", -101., 101.);
+        let ds = ds.with_range(Some("fake"), "d", "b", -101., 101.);
         assert!(ds.is_err());
         Ok(())
     }
@@ -3377,7 +3485,7 @@ mod tests {
                 .get(CONSTRAINT)
                 == None
         );
-        let ds = ds.with_constraint("b", "d", "a", Some(CONSTRAINT_UNIQUE))?;
+        let ds = ds.with_constraint(Some("b"), "d", "a", Some(CONSTRAINT_UNIQUE))?;
         println!(
             "{:?}",
             ds.schema()
@@ -3428,7 +3536,7 @@ mod tests {
                 .unwrap()
                 == CONSTRAINT_UNIQUE
         );
-        let ds = ds.with_constraint("b", "d", "a", None)?;
+        let ds = ds.with_constraint(Some("b"), "d", "a", None)?;
         assert!(
             ds.schema()
                 .type_()
@@ -3454,7 +3562,7 @@ mod tests {
                 .get(CONSTRAINT)
                 == None
         );
-        let ds = ds.with_constraint("b", "fake", "a", Some(CONSTRAINT_UNIQUE));
+        let ds = ds.with_constraint(Some("b"), "fake", "a", Some(CONSTRAINT_UNIQUE));
         assert!(ds.is_err());
         Ok(())
     }
@@ -3529,7 +3637,7 @@ mod tests {
                 .get(CONSTRAINT)
                 == None
         );
-        let ds = ds.with_constraint("b", "d", "a", Some(CONSTRAINT_UNIQUE))?;
+        let ds = ds.with_constraint(Some("b"), "d", "a", Some(CONSTRAINT_UNIQUE))?;
         println!("SCHEMA:\n{}", ds.schema());
         println!(
             "{:?}",
@@ -3593,7 +3701,7 @@ mod tests {
                 .unwrap()
                 == CONSTRAINT_UNIQUE
         );
-        let ds = ds.with_constraint("b", "d", "a", None)?;
+        let ds = ds.with_constraint(Some("b"), "d", "a", None)?;
         assert!(
             ds.schema()
                 .type_()
@@ -3626,7 +3734,7 @@ mod tests {
                 == None
         );
 
-        let ds = ds.with_constraint("b", "fake", "a", Some(CONSTRAINT_UNIQUE));
+        let ds = ds.with_constraint(Some("b"), "fake", "a", Some(CONSTRAINT_UNIQUE));
         assert!(ds.is_err());
         Ok(())
     }

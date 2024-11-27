@@ -8,6 +8,7 @@ use crate::protobuf::{
     dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
+use protobuf::Enum as _;
 use qrlew::{
     builder::{Ready, With},
     data_type::{self, DataType, DataTyped},
@@ -16,7 +17,7 @@ use qrlew::{
     relation::{field, schema::Schema, Constraint, Relation, Variant as _},
 };
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     convert::{TryFrom, TryInto},
     error, fmt, result,
     str::FromStr,
@@ -25,6 +26,7 @@ use std::{
 
 pub const CONSTRAINT: &str = "_CONSTRAINT_";
 pub const CONSTRAINT_UNIQUE: &str = "_UNIQUE_"; // We ignore other constraints
+pub const ID_BASE: &str = "_BASE_";
 
 // Error management
 
@@ -860,6 +862,19 @@ fn table_structs<'a>(
     }
 }
 
+impl From<type_::type_::id::Base> for String {
+    fn from(value: type_::type_::id::Base) -> Self {
+        match value {
+            type_::type_::id::Base::INT64 => "INT64".to_string(),
+            type_::type_::id::Base::INT32 => "INT32".to_string(),
+            type_::type_::id::Base::INT16 => "INT16".to_string(),
+            type_::type_::id::Base::INT8 => "INT8".to_string(),
+            type_::type_::id::Base::STRING => "STRING".to_string(),
+            type_::type_::id::Base::BYTES => "BYTES".to_string(),
+        }
+    }
+}
+
 /// Builds a DataType from a protobuf Type
 impl<'a> From<&'a type_::Type> for DataType {
     fn from(value: &'a type_::Type) -> Self {
@@ -1040,11 +1055,15 @@ impl<'a> From<&'a type_::Type> for DataType {
                     DataType::duration_interval(format_duration(*min), format_duration(*max))
                 }
             }
-            type_::type_::Type::Id(type_::type_::Id {
-                unique,
-                reference: _,
-                ..
-            }) => DataType::Id(data_type::Id::new(None, *unique)),
+            type_::type_::Type::Id(id) => {
+                let unique = id.unique();
+                let base_as_string = String::from(id.base());
+                DataType::Id(data_type::Id::new(
+                    None,
+                    unique,
+                    BTreeMap::from([(ID_BASE.to_string(), base_as_string)]),
+                ))
+            }
             _ => DataType::Any,
         })
     }
@@ -1325,11 +1344,20 @@ impl<'a> TryFrom<&'a DataType> for type_::Type {
                 proto_type.set_duration(duration_type);
             }
             DataType::Id(id) => {
+                //
                 let mut id_type = type_::type_::Id::new();
                 id_type.set_unique(id.unique());
 
+                let base = id
+                    .attributes()
+                    .get(ID_BASE)
+                    .and_then(|s| type_::type_::id::Base::from_str(s))
+                    .unwrap_or(type_::type_::id::Base::STRING);
+
+                id_type.set_base(base);
+
                 proto_type.set_name("Id".to_string());
-                proto_type.set_id(type_::type_::Id::new());
+                proto_type.set_id(id_type);
             }
             DataType::Function(_function) => {
                 return Err(Error::Other(
@@ -1564,7 +1592,7 @@ mod tests {
         assert!(pu_vec.len() == pu_admin_cols.len());
         let pu_field = field::Field::from((
             PID_COLUMN,
-            DataType::optional(DataType::from(Id::new(None, true))),
+            DataType::optional(DataType::from(Id::new(None, true, BTreeMap::new()))),
             Constraint::Unique,
         ));
         assert!(pu_vec.contains(&&pu_field));
@@ -1886,7 +1914,7 @@ mod tests {
         assert!(pu_vec.len() == pu_admin_cols.len());
         let pu_field = field::Field::from((
             PID_COLUMN,
-            DataType::optional(DataType::from(Id::new(None, false))),
+            DataType::optional(DataType::from(Id::new(None, false, BTreeMap::new()))),
             None,
         ));
         assert!(pu_vec.contains(&&pu_field));
@@ -1909,12 +1937,15 @@ mod tests {
         assert!(pu_vec.len() == pu_admin_cols.len());
         let pu_field = field::Field::from((
             PID_COLUMN,
-            DataType::optional(DataType::from(Id::new(None, false))),
+            DataType::optional(DataType::from(Id::new(None, false, BTreeMap::new()))),
             None,
         ));
         assert!(pu_vec.contains(&&pu_field));
-        let id_col =
-            field::Field::from(("b", DataType::from(Id::new(None, true)), Constraint::Unique));
+        let id_col = field::Field::from((
+            "b",
+            DataType::from(Id::new(None, true, BTreeMap::new())),
+            Constraint::Unique,
+        ));
         assert!(fields.contains(&&id_col));
         Ok(())
     }
@@ -1987,7 +2018,9 @@ mod tests {
                                 "optional": {
                                     "type": {
                                         "name": "Id",
-                                        "id": {}
+                                        "id": {
+                                        "base": "STRING"
+                                        }
                                     }
                                 }
                             }
@@ -2017,6 +2050,7 @@ mod tests {
         let ds = Dataset::try_from(&relations)?;
 
         let ds_schema_proto = ds.schema();
+        println!("{}", ds_schema_proto);
         let ds_size_proto = ds.size();
 
         if let Some(proto) = ds_size_proto {
@@ -2082,7 +2116,9 @@ mod tests {
                     "optional": {
                       "type": {
                         "name": "Id",
-                        "id": {}
+                        "id": {
+                        "base": "STRING"
+                        }
                       }
                     }
                   }
@@ -3009,9 +3045,62 @@ mod tests {
         "#;
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
+        match &sarus_type {
+            DataType::Id(id) => {
+                assert!(id.attributes().get(ID_BASE) == Some(&"STRING".to_string()))
+            }
+            _ => (),
+        }
+
         assert!(sarus_type == DataType::id());
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
+        assert!(proto_data_type.id().base() == new_proto_data_type.id().base());
+
+        let type_str: &str = r#"
+            {
+                "@type": "sarus_data_spec/sarus_data_spec.Type",
+                "id": {
+                "base": "INT64",
+                "unique": false
+                },
+                "name": "Id",
+                "properties": {}
+            }
+        "#;
+        let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
+        let sarus_type = DataType::from(&proto_data_type);
+        match &sarus_type {
+            DataType::Id(id) => assert!(id.attributes().get(ID_BASE) == Some(&"INT64".to_string())),
+            _ => (),
+        }
+
+        assert!(sarus_type == DataType::id());
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
+        assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
+        assert!(proto_data_type.id().base() == new_proto_data_type.id().base());
+
+        let type_str: &str = r#"
+            {
+                "@type": "sarus_data_spec/sarus_data_spec.Type",
+                "id": {
+                "unique": false
+                },
+                "name": "Id",
+                "properties": {}
+            }
+        "#;
+        let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
+        let sarus_type = DataType::from(&proto_data_type);
+        match &sarus_type {
+            DataType::Id(id) => assert!(id.attributes().get(ID_BASE) == Some(&"INT64".to_string())),
+            _ => (),
+        }
+
+        assert!(sarus_type == DataType::id());
+        let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
+        assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
+        assert!(proto_data_type.id().base() == new_proto_data_type.id().base());
 
         Ok(())
     }

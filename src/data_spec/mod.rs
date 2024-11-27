@@ -5,7 +5,7 @@
 //! https://www.postgresql.org/docs/14/index.html
 
 use crate::protobuf::{
-    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError
+    dataset, parse_from_str, print_to_string, schema, size, statistics, type_, ParseError,
 };
 use chrono::{self, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use protobuf::Enum as _;
@@ -1058,8 +1058,12 @@ impl<'a> From<&'a type_::Type> for DataType {
             type_::type_::Type::Id(id) => {
                 let unique = id.unique();
                 let base_as_string = String::from(id.base());
-                DataType::Id(data_type::Id::new(None, unique, BTreeMap::from([(ID_BASE.to_string(), base_as_string)])))
-            },
+                DataType::Id(data_type::Id::new(
+                    None,
+                    unique,
+                    BTreeMap::from([(ID_BASE.to_string(), base_as_string)]),
+                ))
+            }
             _ => DataType::Any,
         })
     }
@@ -1340,13 +1344,15 @@ impl<'a> TryFrom<&'a DataType> for type_::Type {
                 proto_type.set_duration(duration_type);
             }
             DataType::Id(id) => {
-                // 
+                //
                 let mut id_type = type_::type_::Id::new();
                 id_type.set_unique(id.unique());
-                
-                let base = id.attributes().get(ID_BASE).and_then(
-                    |s|type_::type_::id::Base::from_str(s)
-                ).unwrap_or(type_::type_::id::Base::STRING);
+
+                let base = id
+                    .attributes()
+                    .get(ID_BASE)
+                    .and_then(|s| type_::type_::id::Base::from_str(s))
+                    .unwrap_or(type_::type_::id::Base::STRING);
 
                 id_type.set_base(base);
 
@@ -1935,8 +1941,11 @@ mod tests {
             None,
         ));
         assert!(pu_vec.contains(&&pu_field));
-        let id_col =
-            field::Field::from(("b", DataType::from(Id::new(None, true, BTreeMap::new())), Constraint::Unique));
+        let id_col = field::Field::from((
+            "b",
+            DataType::from(Id::new(None, true, BTreeMap::new())),
+            Constraint::Unique,
+        ));
         assert!(fields.contains(&&id_col));
         Ok(())
     }
@@ -3037,10 +3046,12 @@ mod tests {
         let proto_data_type: type_::Type = parse_from_str(type_str).unwrap();
         let sarus_type = DataType::from(&proto_data_type);
         match &sarus_type {
-            DataType::Id(id) => assert!(id.attributes().get(ID_BASE) == Some(&"STRING".to_string())),
-            _ => ()
+            DataType::Id(id) => {
+                assert!(id.attributes().get(ID_BASE) == Some(&"STRING".to_string()))
+            }
+            _ => (),
         }
-        
+
         assert!(sarus_type == DataType::id());
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
@@ -3061,9 +3072,9 @@ mod tests {
         let sarus_type = DataType::from(&proto_data_type);
         match &sarus_type {
             DataType::Id(id) => assert!(id.attributes().get(ID_BASE) == Some(&"INT64".to_string())),
-            _ => ()
+            _ => (),
         }
-        
+
         assert!(sarus_type == DataType::id());
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
@@ -3083,9 +3094,9 @@ mod tests {
         let sarus_type = DataType::from(&proto_data_type);
         match &sarus_type {
             DataType::Id(id) => assert!(id.attributes().get(ID_BASE) == Some(&"INT64".to_string())),
-            _ => ()
+            _ => (),
         }
-        
+
         assert!(sarus_type == DataType::id());
         let new_proto_data_type: type_::Type = (&sarus_type).try_into()?;
         assert!(proto_data_type.id().unique() == new_proto_data_type.id().unique());
